@@ -15,7 +15,7 @@ start_container() {
       -e POSTGRES_USER="$PG_USER" \
       -e POSTGRES_PASSWORD="$PG_PASSWORD" \
       -e POSTGRES_DB="$DB_NAME" \
-      -p "$PG_PORT":5432 \
+      -p "$PG_HOST:$PG_PORT":5432 \
       -d postgres:17.2
   echo "PostgreSQL container '$PG_CONTAINER_NAME' started."
 

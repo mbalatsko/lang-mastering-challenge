@@ -1,5 +1,6 @@
 # Environment variables
 export PG_CONTAINER_NAME=${PG_CONTAINER_NAME:-lmc_challenge_pg_container}  # Default container name
+export PG_HOST=${PG_HOST:-127.0.0.1} # Host for PostgreSQL to run on
 export PG_PORT=${PG_PORT:-5432}  # Port for PostgreSQL to listen on
 export PG_USER=${PG_USER:-tester}  # PostgreSQL user name
 export PG_PASSWORD=${PG_PASSWORD:-tester}  # Password for the PostgreSQL user
