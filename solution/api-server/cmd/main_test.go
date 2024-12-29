@@ -125,6 +125,30 @@ func TestRegistration(t *testing.T) {
 		}
 	})
 
+	t.Run("Failed on duplicate email", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			defer truncateTables(conn, []string{"users"})
+
+			email := EmailGen.Draw(t, "email")
+			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
+			testUser := UserCredentials{
+				Email:    email,
+				Password: password,
+			}
+			userJson, _ := json.Marshal(testUser)
+			req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			// duplicate call
+			req, _ = http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
+			resp = httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			assert.Equal(t, 400, resp.Code, email, password, resp.Body.String())
+		})
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
 			defer truncateTables(conn, []string{"users"})
