@@ -6,3 +6,5 @@ export PG_USER=${PG_USER:-tester}  # PostgreSQL user name
 export PG_PASSWORD=${PG_PASSWORD:-tester}  # Password for the PostgreSQL user
 export DB_NAME=${DB_NAME:-task_manager}  # Name of the database to create
 export SCHEMA_FILE=${SCHEMA_FILE:-"./database/schema.sql"}  # Path to the SQL schema file
+
+export JWT_SECRET=${SCHEMA_FILE:-"super-mega-secret"} # Secret used to sign JWT tokens

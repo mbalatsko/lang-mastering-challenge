@@ -10,12 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
 	"api-server/pkg/db"
+	"api-server/pkg/utils"
 )
+
+const TokenExpiration = time.Hour * 72
 
 type UserCredentials struct {
 	Email    string `json:"email" binding:"required,email"`
@@ -87,7 +91,8 @@ func (repo *UserRepository) GetByEmail(ctx context.Context, email string) (user 
 var ErrEmailAlreadyExists = errors.New("user with such email already exists")
 
 type UserService struct {
-	Repo *UserRepository
+	Repo      *UserRepository
+	JwtSecret string
 }
 
 func (s *UserService) Register(ctx context.Context, cred *UserCredentials) error {
@@ -111,15 +116,25 @@ func (s *UserService) compareHashAndPassword(hashedPassword string, password str
 	return err == nil
 }
 
-func (s *UserService) Login(ctx context.Context, cred *UserCredentials) (bool, error) {
+func (s *UserService) Login(ctx context.Context, cred *UserCredentials) (string, bool, error) {
 	user, found, err := s.Repo.GetByEmail(ctx, cred.Email)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 	if !found {
-		return false, nil
+		return "", false, nil
 	}
-	return s.compareHashAndPassword(user.PasswordHash, cred.Password), nil
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": user.Email,
+		"exp":   time.Now().Add(TokenExpiration).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(s.JwtSecret))
+	if err != nil {
+		return "", false, err
+	}
+	return tokenString, s.compareHashAndPassword(user.PasswordHash, cred.Password), nil
 }
 
 func setupRouter() *gin.Engine {
@@ -128,7 +143,9 @@ func setupRouter() *gin.Engine {
 	dbConnPool := db.ConnectDB()
 
 	userRepo := &UserRepository{Db: dbConnPool}
-	userService := &UserService{Repo: userRepo}
+
+	jwtSecret := utils.MustGetenv("JWT_SECRET")
+	userService := &UserService{Repo: userRepo, JwtSecret: jwtSecret}
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("strongpass", strongPasswordValidator)
@@ -164,7 +181,7 @@ func setupRouter() *gin.Engine {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		success, err := userService.Login(c.Request.Context(), &cred)
+		token, success, err := userService.Login(c.Request.Context(), &cred)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -173,7 +190,7 @@ func setupRouter() *gin.Engine {
 			c.Status(http.StatusUnauthorized)
 			return
 		}
-		c.Status(http.StatusOK)
+		c.JSON(http.StatusOK, gin.H{"token": token})
 	})
 
 	return r

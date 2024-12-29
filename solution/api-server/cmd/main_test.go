@@ -2,6 +2,7 @@ package main
 
 import (
 	"api-server/pkg/db"
+	"api-server/pkg/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -199,6 +201,21 @@ func TestLogin(t *testing.T) {
 			router.ServeHTTP(resp, req)
 
 			assert.Equal(t, 200, resp.Code, resp.Body.String())
+
+			respMap := map[string]string{}
+
+			err := json.Unmarshal(resp.Body.Bytes(), &respMap)
+			assert.Nil(t, err, resp.Body.String())
+
+			tokenString := respMap["token"]
+			parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				return []byte(utils.MustGetenv("JWT_SECRET")), nil
+			})
+			assert.Nil(t, err, resp.Body.String(), tokenString)
+			assert.True(t, parsedToken.Valid)
+
+			claims, _ := parsedToken.Claims.(jwt.MapClaims)
+			assert.Equal(t, testUser.Email, claims["email"])
 		})
 	})
 }
