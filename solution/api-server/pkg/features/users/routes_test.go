@@ -1,4 +1,4 @@
-package main
+package users
 
 import (
 	"api-server/pkg/db"
@@ -6,15 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
@@ -52,39 +51,22 @@ func generateStrongPassword(t *rapid.T, length int) string {
 	return string(password)
 }
 
-func truncateTables(conn *pgxpool.Pool, tables []string) {
-	batch := &pgx.Batch{}
-	for _, t := range tables {
-		batch.Queue(fmt.Sprintf("DELETE FROM %s", t))
-	}
-	err := conn.SendBatch(context.Background(), batch).Close()
-	if err != nil {
-		panic(err)
-	}
-}
-
-func TestPingRoute(t *testing.T) {
-	r := setupRouter()
-
-	req, _ := http.NewRequest("GET", "/ping", nil)
-
-	resp := httptest.NewRecorder()
-	r.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
-	assert.Equal(t, "pong", resp.Body.String())
-}
-
 func TestRegistration(t *testing.T) {
-	router := setupRouter()
+	r := gin.Default()
+
 	conn := db.ConnectDB()
-	userRepo := UserRepository{Db: conn}
+
+	userRepo := NewUserRepo(conn)
+	userService := NewUserService(userRepo)
+
+	RegisterUsersValidators()
+	RegisterUsersRoutes(r, userService)
 
 	t.Run("Failed on empty body", func(t *testing.T) {
 		emptyJson, _ := json.Marshal(map[string]string{})
 		req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(emptyJson)))
 		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, req)
+		r.ServeHTTP(resp, req)
 
 		assert.Equal(t, 400, resp.Code, resp.Body.String())
 	})
@@ -100,7 +82,7 @@ func TestRegistration(t *testing.T) {
 			userJson, _ := json.Marshal(testUser)
 			req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			assert.Equal(t, 400, resp.Code, email, resp.Body.String())
 			assert.Contains(t, resp.Body.String(), "Email")
@@ -118,7 +100,7 @@ func TestRegistration(t *testing.T) {
 			userJson, _ := json.Marshal(testUser)
 			req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			assert.Equal(t, 400, resp.Code, password, resp.Body.String())
 			assert.Contains(t, resp.Body.String(), "Password")
@@ -127,7 +109,7 @@ func TestRegistration(t *testing.T) {
 
 	t.Run("Failed on duplicate email", func(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
-			defer truncateTables(conn, []string{"users"})
+			defer utils.TruncateTables(conn, []string{"users"})
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
@@ -138,12 +120,12 @@ func TestRegistration(t *testing.T) {
 			userJson, _ := json.Marshal(testUser)
 			req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			// duplicate call
 			req, _ = http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
 			resp = httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			assert.Equal(t, 400, resp.Code, email, password, resp.Body.String())
 		})
@@ -151,7 +133,7 @@ func TestRegistration(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
-			defer truncateTables(conn, []string{"users"})
+			defer utils.TruncateTables(conn, []string{"users"})
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
@@ -162,7 +144,7 @@ func TestRegistration(t *testing.T) {
 			userJson, _ := json.Marshal(testUser)
 			req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			assert.Equal(t, 201, resp.Code, email, password, resp.Body.String())
 
@@ -174,14 +156,21 @@ func TestRegistration(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	router := setupRouter()
+	r := gin.Default()
+
 	conn := db.ConnectDB()
+
+	userRepo := NewUserRepo(conn)
+	userService := NewUserService(userRepo)
+
+	RegisterUsersValidators()
+	RegisterUsersRoutes(r, userService)
 
 	t.Run("Failed on empty body", func(t *testing.T) {
 		emptyJson, _ := json.Marshal(map[string]string{})
 		req, _ := http.NewRequest("POST", "/auth/login", strings.NewReader(string(emptyJson)))
 		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, req)
+		r.ServeHTTP(resp, req)
 
 		assert.Equal(t, 400, resp.Code, resp.Body.String())
 	})
@@ -197,7 +186,7 @@ func TestLogin(t *testing.T) {
 			userJson, _ := json.Marshal(testUser)
 			req, _ := http.NewRequest("POST", "/auth/login", strings.NewReader(string(userJson)))
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			assert.Equal(t, 401, resp.Code, resp.Body.String())
 		})
@@ -205,7 +194,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("Success after registration", func(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
-			defer truncateTables(conn, []string{"users"})
+			defer utils.TruncateTables(conn, []string{"users"})
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
@@ -217,12 +206,12 @@ func TestLogin(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", "/auth/register", strings.NewReader(string(userJson)))
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 			assert.Equal(t, 201, resp.Code, resp.Body.String())
 
 			req, _ = http.NewRequest("POST", "/auth/login", strings.NewReader(string(userJson)))
 			resp = httptest.NewRecorder()
-			router.ServeHTTP(resp, req)
+			r.ServeHTTP(resp, req)
 
 			assert.Equal(t, 200, resp.Code, resp.Body.String())
 
