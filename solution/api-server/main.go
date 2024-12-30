@@ -1,37 +1,33 @@
 package main
 
 import (
-	"net/http"
+	"api-server/internal/app/middlewares"
+	"api-server/internal/app/routes"
+	"api-server/internal/db"
+	"api-server/internal/domain/repos"
+	"api-server/internal/domain/services"
+	"api-server/internal/utils"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"api-server/pkg/db"
-	"api-server/pkg/features/users"
 )
 
 type Services struct {
-	UserService *users.UserService
+	TokenProvider *services.JwtTokenProvider
+	UserService   *services.UserService
+	UserRepo      *repos.UserRepo
 }
 
-func setupServices(conn *pgxpool.Pool) *Services {
-	userRepository := users.NewUserRepo(conn)
+func SetupDependencies(conn *pgxpool.Pool) *Services {
+	tp := services.NewJwtTokenProvider()
 
-	userService := users.NewUserService(userRepository)
+	userRepo := repos.NewUserRepo(conn)
+	userService := services.NewUserService(userRepo, tp)
 
 	return &Services{
-		UserService: userService,
+		TokenProvider: tp,
+		UserService:   userService,
+		UserRepo:      userRepo,
 	}
-}
-
-func setupDefaultRouter() *gin.Engine {
-	r := gin.Default()
-
-	r.GET("/ping", func(c *gin.Context) {
-		c.String(http.StatusOK, "pong")
-	})
-
-	return r
 }
 
 func main() {
@@ -39,14 +35,17 @@ func main() {
 	conn := db.ConnectDB()
 
 	// Setup services
-	services := setupServices(conn)
+	services := SetupDependencies(conn)
 
 	// Register validators
-	users.RegisterUsersValidators()
+	utils.RegisterValidators()
+
+	// Setup Auth middleware
+	jwtAuth := middlewares.NewJwtAuthenticator(services.TokenProvider, services.UserRepo)
 
 	// Register all app routes
-	r := setupDefaultRouter()
-	users.RegisterUsersRoutes(r, services.UserService)
+	r := routes.SetupDefaultRouter()
+	routes.RegisterAuthRoutes(r, jwtAuth, services.UserService)
 
 	r.Run(":9090")
 }

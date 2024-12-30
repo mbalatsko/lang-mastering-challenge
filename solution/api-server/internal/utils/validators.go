@@ -1,4 +1,4 @@
-package users
+package utils
 
 import (
 	"regexp"
@@ -27,7 +27,7 @@ var strongPasswordValidator validator.Func = func(fl validator.FieldLevel) bool 
 	return true
 }
 
-func RegisterUsersValidators() {
+func RegisterValidators() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("strongpass", strongPasswordValidator)
 	}

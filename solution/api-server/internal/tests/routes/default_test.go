@@ -1,6 +1,7 @@
-package main
+package routes_test
 
 import (
+	"api-server/internal/app/routes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestPingRoute(t *testing.T) {
-	r := setupDefaultRouter()
+	r := routes.SetupDefaultRouter()
 
 	req, _ := http.NewRequest("GET", "/ping", nil)
 

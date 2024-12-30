@@ -1,8 +1,13 @@
-package users
+package routes_test
 
 import (
-	"api-server/pkg/db"
-	"api-server/pkg/utils"
+	"api-server/internal/app/middlewares"
+	"api-server/internal/app/routes"
+	"api-server/internal/db"
+	"api-server/internal/domain/models"
+	"api-server/internal/domain/repos"
+	"api-server/internal/domain/services"
+	"api-server/internal/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +16,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -56,11 +62,14 @@ func TestRegistration(t *testing.T) {
 
 	conn := db.ConnectDB()
 
-	userRepo := NewUserRepo(conn)
-	userService := NewUserService(userRepo)
+	tp := services.NewJwtTokenProvider()
+	userRepo := repos.NewUserRepo(conn)
+	userService := services.NewUserService(userRepo, tp)
 
-	RegisterUsersValidators()
-	RegisterUsersRoutes(r, userService)
+	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+
+	utils.RegisterValidators()
+	routes.RegisterAuthRoutes(r, jwtAuth, userService)
 
 	t.Run("Failed on empty body", func(t *testing.T) {
 		emptyJson, _ := json.Marshal(map[string]string{})
@@ -75,7 +84,7 @@ func TestRegistration(t *testing.T) {
 		invalidEmails := []string{"invalid", "invalid.com", "aaa@aaa", "com.com@"}
 
 		for _, email := range invalidEmails {
-			testUser := UserCredentials{
+			testUser := models.UserCredentials{
 				Email:    email,
 				Password: "Password1!",
 			}
@@ -93,7 +102,7 @@ func TestRegistration(t *testing.T) {
 		invalidPasswords := []string{"invalid", "invalid1", "invalid!", ".verylongbutinvalid.", "Invalid"}
 
 		for _, password := range invalidPasswords {
-			testUser := UserCredentials{
+			testUser := models.UserCredentials{
 				Email:    "email@test.com",
 				Password: password,
 			}
@@ -113,7 +122,7 @@ func TestRegistration(t *testing.T) {
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := UserCredentials{
+			testUser := models.UserCredentials{
 				Email:    email,
 				Password: password,
 			}
@@ -137,7 +146,7 @@ func TestRegistration(t *testing.T) {
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := UserCredentials{
+			testUser := models.UserCredentials{
 				Email:    email,
 				Password: password,
 			}
@@ -160,11 +169,14 @@ func TestLogin(t *testing.T) {
 
 	conn := db.ConnectDB()
 
-	userRepo := NewUserRepo(conn)
-	userService := NewUserService(userRepo)
+	tp := services.NewJwtTokenProvider()
+	userRepo := repos.NewUserRepo(conn)
+	userService := services.NewUserService(userRepo, tp)
 
-	RegisterUsersValidators()
-	RegisterUsersRoutes(r, userService)
+	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+
+	utils.RegisterValidators()
+	routes.RegisterAuthRoutes(r, jwtAuth, userService)
 
 	t.Run("Failed on empty body", func(t *testing.T) {
 		emptyJson, _ := json.Marshal(map[string]string{})
@@ -179,7 +191,7 @@ func TestLogin(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := UserCredentials{
+			testUser := models.UserCredentials{
 				Email:    email,
 				Password: password,
 			}
@@ -198,7 +210,7 @@ func TestLogin(t *testing.T) {
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := UserCredentials{
+			testUser := models.UserCredentials{
 				Email:    email,
 				Password: password,
 			}
@@ -229,6 +241,125 @@ func TestLogin(t *testing.T) {
 
 			claims, _ := parsedToken.Claims.(jwt.MapClaims)
 			assert.Equal(t, testUser.Email, claims["email"])
+		})
+	})
+}
+
+func TestWhoAmI(t *testing.T) {
+	r := gin.Default()
+
+	conn := db.ConnectDB()
+
+	tp := services.NewJwtTokenProvider()
+	userRepo := repos.NewUserRepo(conn)
+	userService := services.NewUserService(userRepo, tp)
+
+	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+
+	utils.RegisterValidators()
+	routes.RegisterAuthRoutes(r, jwtAuth, userService)
+
+	t.Run("Unauthorized on empty header", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Unauthorized on wrong header value", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+
+		// random value
+		req.Header.Set(jwtAuth.AuthHeader, "test")
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+
+		// correct prefix but random value
+		req.Header.Set(jwtAuth.AuthHeader, jwtAuth.AuthHeaderPrefix+" test")
+		resp = httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Unauthorized on correct header value, but non existing user", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+
+		// random value
+		token, _ := tp.Provide("non@existing.com")
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Unauthorized on correct header value, but non existing user", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+
+		// random value
+		token, _ := tp.Provide("non@existing.com")
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Unauthorized on expired token", func(t *testing.T) {
+		defer utils.TruncateTables(conn, []string{"users"})
+		// add user
+		email := "test@existing.com"
+		_, err := userRepo.Create(context.Background(), email, "random")
+		if err != nil {
+			panic(err)
+		}
+
+		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+
+		// expired token
+		token, _ := tp.ProvideWithExp(email, time.Now().Add(-time.Hour))
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			defer utils.TruncateTables(conn, []string{"users"})
+			// add user
+			email := EmailGen.Draw(t, "email")
+			_, err := userRepo.Create(context.Background(), email, "random")
+			if err != nil {
+				panic(err)
+			}
+
+			req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+
+			// expired token
+			token, _ := tp.Provide(email)
+			req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			assert.Equal(t, 200, resp.Code, resp.Body.String())
+
+			var userData models.UserData
+			err = json.NewDecoder(resp.Body).Decode(&userData)
+			if err != nil {
+				panic(err)
+			}
+			assert.Equal(t, email, userData.Email, userData)
+			assert.NotEmpty(t, userData.Id, userData)
+			assert.NotEmpty(t, userData.CreatedAt, userData)
+			assert.Empty(t, userData.PasswordHash, userData)
 		})
 	})
 }
