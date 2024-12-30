@@ -13,20 +13,27 @@ import (
 
 type Services struct {
 	TokenProvider *services.JwtTokenProvider
-	UserService   *services.UserService
-	UserRepo      *repos.UserRepo
+	UsersService  *services.UsersService
+	UsersRepo     *repos.UsersRepo
+	TasksService  *services.TasksService
+	TasksRepo     *repos.TasksRepo
 }
 
 func SetupDependencies(conn *pgxpool.Pool) *Services {
 	tp := services.NewJwtTokenProvider()
 
-	userRepo := repos.NewUserRepo(conn)
-	userService := services.NewUserService(userRepo, tp)
+	userRepo := repos.NewUsersRepo(conn)
+	userService := services.NewUsersService(userRepo, tp)
+
+	tasksRepo := repos.NewTasksRepo(conn)
+	tasksService := services.NewTasksService(tasksRepo)
 
 	return &Services{
 		TokenProvider: tp,
-		UserService:   userService,
-		UserRepo:      userRepo,
+		UsersService:  userService,
+		UsersRepo:     userRepo,
+		TasksService:  tasksService,
+		TasksRepo:     tasksRepo,
 	}
 }
 
@@ -34,18 +41,19 @@ func main() {
 	// Setup DB connection
 	conn := db.ConnectDB()
 
-	// Setup services
-	services := SetupDependencies(conn)
+	// Setup deps
+	deps := SetupDependencies(conn)
 
 	// Register validators
 	utils.RegisterValidators()
 
 	// Setup Auth middleware
-	jwtAuth := middlewares.NewJwtAuthenticator(services.TokenProvider, services.UserRepo)
+	jwtAuth := middlewares.NewJwtAuthenticator(deps.TokenProvider, deps.UsersRepo)
 
 	// Register all app routes
 	r := routes.SetupDefaultRouter()
-	routes.RegisterAuthRoutes(r, jwtAuth, services.UserService)
+	routes.RegisterAuthRoutes(r, jwtAuth, deps.UsersService)
+	routes.RegisterTasksRoutes(r, jwtAuth, deps.TasksService)
 
 	r.Run(":9090")
 }

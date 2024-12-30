@@ -39,7 +39,7 @@ func (tp *JwtTokenProvider) ProvideWithExp(email string, exp time.Time) (string,
 }
 
 func (tp *JwtTokenProvider) Provide(email string) (string, error) {
-	return tp.ProvideWithExp(email, time.Now().Add(TokenExpiration))
+	return tp.ProvideWithExp(email, time.Now().UTC().Add(TokenExpiration))
 }
 
 func (tp *JwtTokenProvider) ParseEmail(tokenString string) (string, error) {

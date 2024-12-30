@@ -16,11 +16,11 @@ type JwtAuthenticator struct {
 	Handler          gin.HandlerFunc
 }
 
-func NewJwtAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UserRepo) *JwtAuthenticator {
+func NewJwtAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UsersRepo) *JwtAuthenticator {
 	const (
 		authHeader       = "Authorization"
 		authHeaderPrefix = "Bearer"
-		authCtxKey       = "UserEmail"
+		authCtxKey       = "User"
 	)
 	return &JwtAuthenticator{
 		AuthHeader:       authHeader,

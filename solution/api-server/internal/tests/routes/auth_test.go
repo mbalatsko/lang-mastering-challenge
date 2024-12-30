@@ -63,8 +63,8 @@ func TestRegistration(t *testing.T) {
 	conn := db.ConnectDB()
 
 	tp := services.NewJwtTokenProvider()
-	userRepo := repos.NewUserRepo(conn)
-	userService := services.NewUserService(userRepo, tp)
+	userRepo := repos.NewUsersRepo(conn)
+	userService := services.NewUsersService(userRepo, tp)
 
 	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
 
@@ -170,8 +170,8 @@ func TestLogin(t *testing.T) {
 	conn := db.ConnectDB()
 
 	tp := services.NewJwtTokenProvider()
-	userRepo := repos.NewUserRepo(conn)
-	userService := services.NewUserService(userRepo, tp)
+	userRepo := repos.NewUsersRepo(conn)
+	userService := services.NewUsersService(userRepo, tp)
 
 	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
 
@@ -251,8 +251,8 @@ func TestWhoAmI(t *testing.T) {
 	conn := db.ConnectDB()
 
 	tp := services.NewJwtTokenProvider()
-	userRepo := repos.NewUserRepo(conn)
-	userService := services.NewUserService(userRepo, tp)
+	userRepo := repos.NewUsersRepo(conn)
+	userService := services.NewUsersService(userRepo, tp)
 
 	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
 
@@ -321,7 +321,7 @@ func TestWhoAmI(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
 
 		// expired token
-		token, _ := tp.ProvideWithExp(email, time.Now().Add(-time.Hour))
+		token, _ := tp.ProvideWithExp(email, time.Now().UTC().Add(-time.Hour))
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp := httptest.NewRecorder()

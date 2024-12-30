@@ -4,12 +4,13 @@ import (
 	"api-server/internal/app/middlewares"
 	"api-server/internal/domain/models"
 	"api-server/internal/domain/services"
+	"api-server/internal/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-func HandleRegistration(userService *services.UserService) func(*gin.Context) {
+func HandleRegistration(userService *services.UsersService) func(*gin.Context) {
 	return func(c *gin.Context) {
 		var cred models.UserCredentials
 		if err := c.ShouldBindBodyWithJSON(&cred); err != nil {
@@ -31,7 +32,7 @@ func HandleRegistration(userService *services.UserService) func(*gin.Context) {
 	}
 }
 
-func HandleLogin(userService *services.UserService) func(*gin.Context) {
+func HandleLogin(userService *services.UsersService) func(*gin.Context) {
 	return func(c *gin.Context) {
 		var cred models.UserCredentials
 		if err := c.ShouldBindBodyWithJSON(&cred); err != nil {
@@ -51,17 +52,10 @@ func HandleLogin(userService *services.UserService) func(*gin.Context) {
 	}
 }
 
-func HandleWhoAmI(userService *services.UserService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
+func HandleWhoAmI(userService *services.UsersService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
-		userDataI, ok := c.Get(jwtAuth.AuthCtxKey)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "user is not provided by middleware"})
-			return
-		}
-
-		userData, ok := userDataI.(models.UserData)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "wrong user type provided by middleware"})
+		userData, err := utils.GetUserFromCtx(c, jwtAuth.AuthCtxKey)
+		if err != nil {
 			return
 		}
 

@@ -11,7 +11,7 @@ CREATE TABLE tasks (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     name TEXT NOT NULL,
-    due_date DATE,
+    due_date TIMESTAMP,
     status task_status NOT NULL DEFAULT 'To do' ,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)

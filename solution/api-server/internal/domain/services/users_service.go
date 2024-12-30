@@ -14,16 +14,16 @@ var (
 	ErrUserNotFound       = errors.New("user with given email is not found")
 )
 
-type UserService struct {
-	Repo          *repos.UserRepo
+type UsersService struct {
+	Repo          *repos.UsersRepo
 	TokenProvider *JwtTokenProvider
 }
 
-func NewUserService(repo *repos.UserRepo, tp *JwtTokenProvider) *UserService {
-	return &UserService{Repo: repo, TokenProvider: tp}
+func NewUsersService(repo *repos.UsersRepo, tp *JwtTokenProvider) *UsersService {
+	return &UsersService{Repo: repo, TokenProvider: tp}
 }
 
-func (s *UserService) Register(ctx context.Context, email string, password string) error {
+func (s *UsersService) Register(ctx context.Context, email string, password string) error {
 	emailExists, err := s.Repo.EmailExists(ctx, email)
 	if emailExists {
 		return ErrEmailAlreadyExists
@@ -41,17 +41,17 @@ func (s *UserService) Register(ctx context.Context, email string, password strin
 	return err
 }
 
-func (s *UserService) compareHashAndPassword(hashedPassword string, password string) bool {
+func (s *UsersService) compareHashAndPassword(hashedPassword string, password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 	return err == nil
 }
 
-func (s *UserService) EmailExists(ctx context.Context, email string) bool {
+func (s *UsersService) EmailExists(ctx context.Context, email string) bool {
 	emailExists, _ := s.Repo.EmailExists(ctx, email)
 	return emailExists
 }
 
-func (s *UserService) GetByEmail(ctx context.Context, email string) (models.UserData, error) {
+func (s *UsersService) GetByEmail(ctx context.Context, email string) (models.UserData, error) {
 	user, found, err := s.Repo.GetByEmail(ctx, email)
 	if err != nil {
 		return user, err
@@ -62,7 +62,7 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (models.User
 	return user, nil
 }
 
-func (s *UserService) Login(ctx context.Context, email string, password string) (string, bool, error) {
+func (s *UsersService) Login(ctx context.Context, email string, password string) (string, bool, error) {
 	user, found, err := s.Repo.GetByEmail(ctx, email)
 	if err != nil {
 		return "", false, err
