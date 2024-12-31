@@ -3,6 +3,7 @@ package repos
 import (
 	"api-server/internal/domain/models"
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -28,6 +29,22 @@ func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int) ([]models.T
 	}
 
 	return pgx.CollectRows(rows, pgx.RowToStructByPos[models.TaskData])
+}
+
+func (repo *TasksRepo) GetById(ctx context.Context, id int) (task models.TaskData, found bool, err error) {
+	rows, err := repo.Conn.Query(ctx, "SELECT id, name, due_date, status, created_at, user_id from tasks where id = $1", id)
+	if err != nil {
+		return models.TaskData{}, false, err
+	}
+
+	task, err = pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.TaskData])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.TaskData{}, false, nil
+	}
+	if err != nil {
+		return models.TaskData{}, false, err
+	}
+	return task, true, nil
 }
 
 func (repo *TasksRepo) Create(ctx context.Context, name string, dueDate *time.Time, userId int) (models.TaskData, error) {
