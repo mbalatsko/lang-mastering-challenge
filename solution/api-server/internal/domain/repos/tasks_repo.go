@@ -21,7 +21,7 @@ func NewTasksRepo(conn *pgxpool.Pool) *TasksRepo {
 func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int) ([]models.TaskData, error) {
 	rows, err := repo.Conn.Query(
 		ctx,
-		"SELECT id, name, due_date, status, created_at, user_id from tasks where user_id = $1",
+		"SELECT id, name, due_date, status, created_at, user_id FROM tasks WHERE user_id = $1",
 		userId,
 	)
 	if err != nil {
@@ -32,7 +32,7 @@ func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int) ([]models.T
 }
 
 func (repo *TasksRepo) GetById(ctx context.Context, id int) (task models.TaskData, found bool, err error) {
-	rows, err := repo.Conn.Query(ctx, "SELECT id, name, due_date, status, created_at, user_id from tasks where id = $1", id)
+	rows, err := repo.Conn.Query(ctx, "SELECT id, name, due_date, status, created_at, user_id FROM tasks WHERE id = $1", id)
 	if err != nil {
 		return models.TaskData{}, false, err
 	}
@@ -45,6 +45,25 @@ func (repo *TasksRepo) GetById(ctx context.Context, id int) (task models.TaskDat
 		return models.TaskData{}, false, err
 	}
 	return task, true, nil
+}
+
+func (repo *TasksRepo) DeleteById(ctx context.Context, id int) error {
+	_, err := repo.Conn.Exec(ctx, "DELETE FROM tasks WHERE id = $1", id)
+	return err
+}
+
+func (repo *TasksRepo) UpdateStatus(ctx context.Context, taskId int, newStatus string) (models.TaskData, error) {
+	rows, err := repo.Conn.Query(
+		ctx,
+		"UPDATE tasks SET status = $1 WHERE id = $2 RETURNING id, name, due_date, status, created_at, user_id",
+		newStatus,
+		taskId,
+	)
+	if err != nil {
+		return models.TaskData{}, err
+	}
+
+	return pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.TaskData])
 }
 
 func (repo *TasksRepo) Create(ctx context.Context, name string, dueDate *time.Time, userId int) (models.TaskData, error) {

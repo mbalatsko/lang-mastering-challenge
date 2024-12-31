@@ -9,6 +9,10 @@ var ValidTaskStatuses = []string{
 	"Done",
 }
 
+type TaskStatus struct {
+	Status string `json:"status" binding:"required,taskStatus"`
+}
+
 type TaskCreate struct {
 	Name    string     `json:"name" binding:"required"`
 	DueDate *time.Time `json:"due_date"`

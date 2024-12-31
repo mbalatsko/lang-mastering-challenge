@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"api-server/internal/domain/models"
 	"regexp"
+	"slices"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
@@ -27,8 +29,17 @@ var strongPasswordValidator validator.Func = func(fl validator.FieldLevel) bool 
 	return true
 }
 
+var taskStatusValidator validator.Func = func(fl validator.FieldLevel) bool {
+	status, ok := fl.Field().Interface().(string)
+	if ok {
+		return slices.Contains(models.ValidTaskStatuses, status)
+	}
+	return true
+}
+
 func RegisterValidators() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("strongpass", strongPasswordValidator)
+		v.RegisterValidation("taskStatus", strongPasswordValidator)
 	}
 }
