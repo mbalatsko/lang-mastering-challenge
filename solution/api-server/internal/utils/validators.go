@@ -26,7 +26,7 @@ var strongPasswordValidator validator.Func = func(fl validator.FieldLevel) bool 
 			digitRegex.MatchString(password) &&
 			specialCharRegex.MatchString(password)
 	}
-	return true
+	return false
 }
 
 var taskStatusValidator validator.Func = func(fl validator.FieldLevel) bool {
@@ -34,12 +34,12 @@ var taskStatusValidator validator.Func = func(fl validator.FieldLevel) bool {
 	if ok {
 		return slices.Contains(models.ValidTaskStatuses, status)
 	}
-	return true
+	return false
 }
 
 func RegisterValidators() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("strongpass", strongPasswordValidator)
-		v.RegisterValidation("taskStatus", strongPasswordValidator)
+		v.RegisterValidation("taskStatus", taskStatusValidator)
 	}
 }

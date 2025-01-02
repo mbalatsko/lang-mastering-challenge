@@ -349,3 +349,114 @@ func TestTasksDelete(t *testing.T) {
 		})
 	})
 }
+
+func TestTasksUpdate(t *testing.T) {
+	r := gin.Default()
+
+	conn := db.ConnectDB()
+
+	tp := services.NewJwtTokenProvider()
+	userRepo := repos.NewUsersRepo(conn)
+
+	tasksRepo := repos.NewTasksRepo(conn)
+	tasksService := services.NewTasksService(tasksRepo)
+
+	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+
+	utils.RegisterValidators()
+	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
+
+	// create tester user
+	userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+	token, _ := tp.Provide(userCred.Email)
+	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
+
+	userData, _ := createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+	defer utils.TruncateTables(conn, []string{"users"})
+
+	t.Run("Unauthorized on empty header", func(t *testing.T) {
+		req, _ := http.NewRequest("PATCH", "/tasks/123", strings.NewReader(""))
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Bad request on non number id", func(t *testing.T) {
+		req, _ := http.NewRequest("PATCH", "/tasks/abcd", strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 400, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Not found on non existing task", func(t *testing.T) {
+		statusUpdate := models.TaskStatus{Status: "To do"}
+		statusUpdateJson, _ := json.Marshal(statusUpdate)
+		req, _ := http.NewRequest("PATCH", "/tasks/123", strings.NewReader(string(statusUpdateJson)))
+		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 404, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Forbidden on someone else's task", func(t *testing.T) {
+		otherUserCred := models.UserCredentials{Email: "other@other.com", Password: "whatever"}
+		_, createdTasks := createUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
+		createdTask := createdTasks[0]
+
+		statusUpdate := models.TaskStatus{Status: "To do"}
+		statusUpdateJson, _ := json.Marshal(statusUpdate)
+		req, _ := http.NewRequest("PATCH", fmt.Sprintf("/tasks/%d", createdTask.Id), strings.NewReader(string(statusUpdateJson)))
+		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 403, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			defer utils.TruncateTables(conn, []string{"tasks"})
+
+			taskData := genTask(t, 0)
+			createdTask, err := tasksRepo.CreateWithStatus(context.Background(), taskData.Name, taskData.DueDate, taskData.Status, userData.Id)
+			if err != nil {
+				panic(err)
+			}
+
+			statusUpdate := models.TaskStatus{Status: statusGen.Draw(t, "newStatus")}
+			statusUpdateJson, _ := json.Marshal(statusUpdate)
+			req, _ := http.NewRequest("PATCH", fmt.Sprintf("/tasks/%d", createdTask.Id), strings.NewReader(string(statusUpdateJson)))
+			req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			assert.Equal(t, 200, resp.Code, resp.Body.String())
+
+			var updatedTaskData models.TaskData
+			err = json.Unmarshal(resp.Body.Bytes(), &updatedTaskData)
+			assert.Nil(t, err, resp.Body.String())
+			assert.Equal(t, updatedTaskData.Name, createdTask.Name)
+			assert.Equal(t, updatedTaskData.DueDate, createdTask.DueDate)
+			// status changed
+			assert.Equal(t, updatedTaskData.Status, statusUpdate.Status)
+
+			taskDataDb, found, err := tasksRepo.GetById(context.Background(), createdTask.Id)
+			if err != nil {
+				panic(err)
+			}
+			assert.True(t, found)
+			assert.Equal(t, taskDataDb.Name, createdTask.Name)
+			assert.Equal(t, taskDataDb.DueDate, createdTask.DueDate)
+			assert.Equal(t, taskDataDb.CreatedAt, createdTask.CreatedAt)
+			assert.Equal(t, taskDataDb.Status, statusUpdate.Status)
+		})
+	})
+}

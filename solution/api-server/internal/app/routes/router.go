@@ -32,4 +32,5 @@ func RegisterTasksRoutes(r *gin.Engine, jwtAuth *middlewares.JwtAuthenticator, t
 	g.POST("/", jwtAuth.Handler, handlers.HandleCreateTask(tasksService, jwtAuth))
 
 	g.DELETE("/:id", jwtAuth.Handler, handlers.HandleDeleteTask(tasksService, jwtAuth))
+	g.PATCH("/:id", jwtAuth.Handler, handlers.HandleUpdateTask(tasksService, jwtAuth))
 }
