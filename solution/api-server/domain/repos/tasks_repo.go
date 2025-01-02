@@ -22,12 +22,28 @@ func NewTasksRepo(conn *pgxpool.Pool) *TasksRepo {
 	return &TasksRepo{Conn: conn}
 }
 
-func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int) ([]models.TaskData, error) {
-	query, args := utils.PgxSB.
+func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int, tasksFilter models.TasksFilter) ([]models.TaskData, error) {
+	qBuilder := utils.PgxSB.
 		Select("id", "name", "due_date", "status", "created_at", "user_id").
 		From("tasks").
-		Where(sq.Eq{"user_id": userId}).
-		MustSql()
+		Where(sq.Eq{"user_id": userId})
+
+	if tasksFilter.Query != nil && *tasksFilter.Query != "" {
+		qBuilder = qBuilder.Where("name like ?", fmt.Sprint("%", *tasksFilter.Query, "%"))
+	}
+
+	if tasksFilter.DueDate() != nil {
+		dd := *tasksFilter.DueDate()
+		fromDueDate := time.Date(dd.Year(), dd.Month(), dd.Day(), 0, 0, 0, 0, time.UTC)
+		toDueDate := fromDueDate.Add(24 * time.Hour)
+		qBuilder = qBuilder.Where("due_date >= ? and due_date < ?", fromDueDate, toDueDate)
+	}
+
+	if tasksFilter.Status != nil {
+		qBuilder = qBuilder.Where(sq.Eq{"status": *tasksFilter.Status})
+	}
+
+	query, args := qBuilder.MustSql()
 
 	tasks, err := pgxutil.Select(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
 	if err != nil {

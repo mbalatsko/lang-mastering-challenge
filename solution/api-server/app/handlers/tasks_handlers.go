@@ -4,7 +4,6 @@ import (
 	"api-server/app/middlewares"
 	"api-server/domain/models"
 	"api-server/domain/services"
-	"api-server/utils"
 	"net/http"
 	"strconv"
 
@@ -13,12 +12,18 @@ import (
 
 func HandleListTasks(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
-		userData, err := utils.GetUserFromCtx(c, jwtAuth.AuthCtxKey)
+		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
 			return
 		}
 
-		tasks, err := tasksService.ListByUserId(c, userData.Id)
+		var tasksFilter models.TasksFilter
+		if err := c.ShouldBindQuery(&tasksFilter); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		tasks, err := tasksService.ListByUserId(c, userData.Id, tasksFilter)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -29,7 +34,7 @@ func HandleListTasks(tasksService *services.TasksService, jwtAuth *middlewares.J
 
 func HandleCreateTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
-		userData, err := utils.GetUserFromCtx(c, jwtAuth.AuthCtxKey)
+		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
 			return
 		}
@@ -51,7 +56,7 @@ func HandleCreateTask(tasksService *services.TasksService, jwtAuth *middlewares.
 
 func HandleDeleteTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
-		userData, err := utils.GetUserFromCtx(c, jwtAuth.AuthCtxKey)
+		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
 			return
 		}
@@ -81,7 +86,7 @@ func HandleDeleteTask(tasksService *services.TasksService, jwtAuth *middlewares.
 
 func HandleUpdateTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
-		userData, err := utils.GetUserFromCtx(c, jwtAuth.AuthCtxKey)
+		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
 			return
 		}

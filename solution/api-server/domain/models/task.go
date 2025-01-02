@@ -1,13 +1,9 @@
 package models
 
-import "time"
-
-var ValidTaskStatuses = []string{
-	"Won't do",
-	"To do",
-	"In progress",
-	"Done",
-}
+import (
+	"api-server/utils"
+	"time"
+)
 
 type TaskStatus struct {
 	Status string `json:"status" binding:"required,taskStatus"`
@@ -28,7 +24,15 @@ type TaskData struct {
 }
 
 type TasksFilter struct {
-	Query   *string    `form:"q"`
-	DueDate *time.Time `form:"due_date"`
-	Status  *string    `form:"status" binding:"taskStatus"`
+	Query      *string `form:"q"`
+	DueDateStr *string `form:"due_date" binding:"omitempty,dayFormat"`
+	Status     *string `form:"status" binding:"omitempty,taskStatus"`
+}
+
+func (tf TasksFilter) DueDate() *time.Time {
+	if tf.DueDateStr == nil {
+		return nil
+	}
+	date, _ := time.Parse(utils.DayDateFmt, *tf.DueDateStr)
+	return &date
 }

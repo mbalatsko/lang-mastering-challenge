@@ -24,8 +24,12 @@ func (s *TasksService) Create(ctx context.Context, task models.TaskCreate, userI
 	return s.Repo.Create(ctx, task.Name, task.DueDate, userId)
 }
 
-func (s *TasksService) ListByUserId(ctx context.Context, userId int) ([]models.TaskData, error) {
-	return s.Repo.ListByUserId(ctx, userId)
+func (s *TasksService) ListByUserId(
+	ctx context.Context,
+	userId int,
+	tasksFilter models.TasksFilter,
+) ([]models.TaskData, error) {
+	return s.Repo.ListByUserId(ctx, userId, tasksFilter)
 }
 
 func (s *TasksService) DeleteById(ctx context.Context, taskId int, reqUserId int) error {

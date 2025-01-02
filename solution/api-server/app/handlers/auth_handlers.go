@@ -4,7 +4,6 @@ import (
 	"api-server/app/middlewares"
 	"api-server/domain/models"
 	"api-server/domain/services"
-	"api-server/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -56,7 +55,7 @@ func HandleLogin(userService *services.UsersService) func(*gin.Context) {
 
 func HandleWhoAmI(userService *services.UsersService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
-		userData, err := utils.GetUserFromCtx(c, jwtAuth.AuthCtxKey)
+		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
 			return
 		}

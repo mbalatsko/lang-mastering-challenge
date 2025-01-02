@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -25,8 +26,20 @@ import (
 var (
 	taskNameGen    = rapid.StringMatching(`[^\x00]+`)
 	dueDateUnixGen = rapid.Int64Range(time.Now().UTC().Add(-72*time.Hour).Unix(), time.Now().UTC().Add(72*time.Hour).Unix())
-	statusGen      = rapid.StringMatching(fmt.Sprintf("^(%s)$", strings.Join(models.ValidTaskStatuses, "|")))
+	statusGen      = rapid.StringMatching(fmt.Sprintf("^(%s)$", strings.Join(utils.ValidTaskStatuses, "|")))
 )
+
+func Map[T, V any](ts []T, fn func(T) V) []V {
+	result := make([]V, len(ts))
+	for i, t := range ts {
+		result[i] = fn(t)
+	}
+	return result
+}
+
+func MapTasksToName(tasks []models.TaskData) []string {
+	return Map(tasks, func(t models.TaskData) string { return t.Name })
+}
 
 func createUserWithTasks(
 	userCred models.UserRegister,
@@ -104,6 +117,118 @@ func TestTasksList(t *testing.T) {
 			panic(err)
 		}
 		assert.Equal(t, 0, len(tasksResp), tasksResp)
+	})
+
+	t.Run("Bad request on invalid filters", func(t *testing.T) {
+		defer utils.TruncateTables(conn, []string{"tasks", "users"})
+		userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
+		token, _ := tp.Provide(userCred.Email)
+
+		createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+
+		u, _ := url.Parse("/tasks/")
+		query := u.Query()
+		// task due date filter
+		query.Set("due_date", "random")
+
+		u.RawQuery = query.Encode()
+		req, _ := http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 400, resp.Code, resp.Body.String())
+
+		// task status filter
+		query = u.Query()
+		query.Set("status", "invalid")
+		u.RawQuery = query.Encode()
+		req, _ = http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+		resp = httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 400, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Successful filtering", func(t *testing.T) {
+		defer utils.TruncateTables(conn, []string{"tasks", "users"})
+		userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
+		token, _ := tp.Provide(userCred.Email)
+
+		timeNow := time.Now().UTC()
+		_, tasks := createUserWithTasks(
+			userCred,
+			[]models.TaskData{
+				{Name: "Task 1", DueDate: &timeNow, Status: "To do"},
+				{Name: "Task 2", DueDate: &timeNow, Status: "In progress"},
+				{Name: "Task 3", DueDate: nil, Status: "To do"},
+				{Name: "Another 3", DueDate: &timeNow, Status: "Done"},
+			},
+			userRepo,
+			tasksRepo,
+		)
+
+		u, _ := url.Parse("/tasks/")
+		query := u.Query()
+		// task name filter
+		query.Set("q", "Task")
+		u.RawQuery = query.Encode()
+
+		req, _ := http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 200, resp.Code, resp.Body.String())
+
+		var tasksResp []models.TaskData
+		err := json.NewDecoder(resp.Body).Decode(&tasksResp)
+		if err != nil {
+			panic(err)
+		}
+		assert.Equal(t, 3, len(tasksResp), tasksResp)
+		assert.ElementsMatch(t, MapTasksToName(tasks[:3]), MapTasksToName(tasksResp))
+
+		// task due date filter
+		query.Set("due_date", timeNow.Format(utils.DayDateFmt))
+		u.RawQuery = query.Encode()
+		req, _ = http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+		resp = httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 200, resp.Code, resp.Body.String())
+
+		err = json.NewDecoder(resp.Body).Decode(&tasksResp)
+		if err != nil {
+			panic(err)
+		}
+		assert.Equal(t, 2, len(tasksResp), tasksResp)
+		assert.ElementsMatch(t, MapTasksToName(tasks[:2]), MapTasksToName(tasksResp))
+
+		// task status filter
+		query.Set("status", "To do")
+		u.RawQuery = query.Encode()
+		req, _ = http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
+
+		resp = httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 200, resp.Code, resp.Body.String())
+
+		err = json.NewDecoder(resp.Body).Decode(&tasksResp)
+		if err != nil {
+			panic(err)
+		}
+		assert.Equal(t, 1, len(tasksResp), tasksResp)
+		assert.ElementsMatch(t, MapTasksToName(tasks[:1]), MapTasksToName(tasksResp))
+
 	})
 
 	t.Run("Same list as in DB", func(t *testing.T) {

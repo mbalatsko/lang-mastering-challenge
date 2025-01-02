@@ -1,13 +1,23 @@
 package utils
 
 import (
-	"api-server/domain/models"
 	"regexp"
 	"slices"
+	"time"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 )
+
+// YYYY-MM-dd
+var DayDateFmt = "2006-01-02"
+
+var ValidTaskStatuses = []string{
+	"Won't do",
+	"To do",
+	"In progress",
+	"Done",
+}
 
 var strongPasswordValidator validator.Func = func(fl validator.FieldLevel) bool {
 	password, ok := fl.Field().Interface().(string)
@@ -32,7 +42,16 @@ var strongPasswordValidator validator.Func = func(fl validator.FieldLevel) bool 
 var taskStatusValidator validator.Func = func(fl validator.FieldLevel) bool {
 	status, ok := fl.Field().Interface().(string)
 	if ok {
-		return slices.Contains(models.ValidTaskStatuses, status)
+		return slices.Contains(ValidTaskStatuses, status)
+	}
+	return false
+}
+
+var dayDateFormatValidator validator.Func = func(fl validator.FieldLevel) bool {
+	date, ok := fl.Field().Interface().(string)
+	if ok {
+		_, err := time.Parse(DayDateFmt, date)
+		return err == nil
 	}
 	return false
 }
@@ -41,5 +60,6 @@ func RegisterValidators() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("strongpass", strongPasswordValidator)
 		v.RegisterValidation("taskStatus", taskStatusValidator)
+		v.RegisterValidation("dayFormat", dayDateFormatValidator)
 	}
 }
