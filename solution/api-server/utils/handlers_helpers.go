@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"api-server/internal/domain/models"
+	"api-server/domain/models"
 	"errors"
 	"net/http"
 

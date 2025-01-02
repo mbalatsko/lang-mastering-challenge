@@ -1,7 +1,7 @@
 package routes_test
 
 import (
-	"api-server/internal/app/routes"
+	"api-server/app/routes"
 	"net/http"
 	"net/http/httptest"
 	"testing"

@@ -1,13 +1,13 @@
 package routes_test
 
 import (
-	"api-server/internal/app/middlewares"
-	"api-server/internal/app/routes"
-	"api-server/internal/db"
-	"api-server/internal/domain/models"
-	"api-server/internal/domain/repos"
-	"api-server/internal/domain/services"
-	"api-server/internal/utils"
+	"api-server/app/middlewares"
+	"api-server/app/routes"
+	"api-server/db"
+	"api-server/domain/models"
+	"api-server/domain/repos"
+	"api-server/domain/services"
+	"api-server/utils"
 	"context"
 	"encoding/json"
 	"fmt"

@@ -1,7 +1,7 @@
 package repos
 
 import (
-	"api-server/internal/domain/models"
+	"api-server/domain/models"
 	"context"
 	"errors"
 	"time"

@@ -1,7 +1,7 @@
 package services
 
 import (
-	"api-server/internal/utils"
+	"api-server/utils"
 	"errors"
 	"time"
 

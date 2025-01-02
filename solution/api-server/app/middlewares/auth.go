@@ -1,8 +1,8 @@
 package middlewares
 
 import (
-	"api-server/internal/domain/repos"
-	"api-server/internal/domain/services"
+	"api-server/domain/repos"
+	"api-server/domain/services"
 	"net/http"
 	"strings"
 

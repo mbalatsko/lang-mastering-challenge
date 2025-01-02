@@ -1,7 +1,7 @@
 package db
 
 import (
-	"api-server/internal/utils"
+	"api-server/utils"
 	"context"
 	"fmt"
 

@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"api-server/internal/app/middlewares"
-	"api-server/internal/domain/models"
-	"api-server/internal/domain/services"
-	"api-server/internal/utils"
+	"api-server/app/middlewares"
+	"api-server/domain/models"
+	"api-server/domain/services"
+	"api-server/utils"
 	"net/http"
 	"strconv"
 

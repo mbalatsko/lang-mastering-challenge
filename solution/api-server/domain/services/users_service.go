@@ -1,8 +1,8 @@
 package services
 
 import (
-	"api-server/internal/domain/models"
-	"api-server/internal/domain/repos"
+	"api-server/domain/models"
+	"api-server/domain/repos"
 	"context"
 	"errors"
 

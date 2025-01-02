@@ -1,12 +1,12 @@
 package main
 
 import (
-	"api-server/internal/app/middlewares"
-	"api-server/internal/app/routes"
-	"api-server/internal/db"
-	"api-server/internal/domain/repos"
-	"api-server/internal/domain/services"
-	"api-server/internal/utils"
+	"api-server/app/middlewares"
+	"api-server/app/routes"
+	"api-server/db"
+	"api-server/domain/repos"
+	"api-server/domain/services"
+	"api-server/utils"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

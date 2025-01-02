@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"api-server/internal/app/handlers"
-	"api-server/internal/app/middlewares"
-	"api-server/internal/domain/services"
+	"api-server/app/handlers"
+	"api-server/app/middlewares"
+	"api-server/domain/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
