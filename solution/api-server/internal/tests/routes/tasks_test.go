@@ -28,14 +28,22 @@ var (
 	statusGen      = rapid.StringMatching(fmt.Sprintf("^(%s)$", strings.Join(models.ValidTaskStatuses, "|")))
 )
 
-func createUserWithTasks(userCred models.UserCredentials, tasks []models.TaskData, userRepo *repos.UsersRepo, tasksRepo *repos.TasksRepo) {
+func createUserWithTasks(
+	userCred models.UserCredentials,
+	tasksData []models.TaskData,
+	userRepo *repos.UsersRepo,
+	tasksRepo *repos.TasksRepo,
+) (models.UserData, []models.TaskData) {
+	createdTasks := make([]models.TaskData, 0, len(tasksData))
 	user, _ := userRepo.Create(context.Background(), userCred.Email, userCred.Password)
-	for _, t := range tasks {
-		_, err := tasksRepo.CreateWithStatus(context.Background(), t.Name, t.DueDate, t.Status, user.Id)
+	for _, t := range tasksData {
+		createdTask, err := tasksRepo.CreateWithStatus(context.Background(), t.Name, t.DueDate, t.Status, user.Id)
 		if err != nil {
 			panic(err)
 		}
+		createdTasks = append(createdTasks, createdTask)
 	}
+	return user, createdTasks
 }
 
 func genTask(t *rapid.T, i int) models.TaskData {
@@ -248,6 +256,96 @@ func TestTasksCreate(t *testing.T) {
 			assert.Equal(t, taskDataDb.DueDate, taskDataResp.DueDate)
 			assert.Equal(t, taskDataDb.CreatedAt, taskDataResp.CreatedAt)
 			assert.Equal(t, taskDataDb.Status, taskDataResp.Status)
+		})
+	})
+}
+
+func TestTasksDelete(t *testing.T) {
+	r := gin.Default()
+
+	conn := db.ConnectDB()
+
+	tp := services.NewJwtTokenProvider()
+	userRepo := repos.NewUsersRepo(conn)
+
+	tasksRepo := repos.NewTasksRepo(conn)
+	tasksService := services.NewTasksService(tasksRepo)
+
+	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+
+	utils.RegisterValidators()
+	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
+
+	// create tester user
+	userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+	token, _ := tp.Provide(userCred.Email)
+	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
+
+	userData, _ := createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+	defer utils.TruncateTables(conn, []string{"users"})
+
+	t.Run("Unauthorized on empty header", func(t *testing.T) {
+		req, _ := http.NewRequest("DELETE", "/tasks/123", strings.NewReader(""))
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 401, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Bad request on non number id", func(t *testing.T) {
+		req, _ := http.NewRequest("DELETE", "/tasks/abcd", strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 400, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Not found on non existing task", func(t *testing.T) {
+		req, _ := http.NewRequest("DELETE", "/tasks/123", strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 404, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Forbidden on someone else's task", func(t *testing.T) {
+		otherUserCred := models.UserCredentials{Email: "other@other.com", Password: "whatever"}
+		_, createdTasks := createUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
+		createdTask := createdTasks[0]
+
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.Id), strings.NewReader(""))
+		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+
+		assert.Equal(t, 403, resp.Code, resp.Body.String())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			defer utils.TruncateTables(conn, []string{"tasks"})
+
+			taskData := genTask(t, 0)
+			createdTask, err := tasksRepo.CreateWithStatus(context.Background(), taskData.Name, taskData.DueDate, taskData.Status, userData.Id)
+			if err != nil {
+				panic(err)
+			}
+
+			req, _ := http.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.Id), strings.NewReader(""))
+			req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
+
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			assert.Equal(t, 204, resp.Code, resp.Body.String())
+
+			_, found, _ := tasksRepo.GetById(context.Background(), createdTask.Id)
+			assert.False(t, found, resp.Code, resp.Body.String())
 		})
 	})
 }
