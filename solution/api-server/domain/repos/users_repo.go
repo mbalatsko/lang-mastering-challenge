@@ -2,11 +2,15 @@ package repos
 
 import (
 	"api-server/domain/models"
+	"api-server/utils"
 	"context"
 	"errors"
+	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgxutil"
 )
 
 type UsersRepo struct {
@@ -18,9 +22,17 @@ func NewUsersRepo(conn *pgxpool.Pool) *UsersRepo {
 }
 
 func (repo *UsersRepo) EmailExists(ctx context.Context, email string) (bool, error) {
+	query, args := utils.PgxSB.
+		Select("1").
+		Prefix("SELECT EXISTS (").
+		From("users").
+		Where(sq.Eq{"email": email}).
+		Suffix(")").
+		MustSql()
+
 	var emailExists bool
 
-	err := repo.Conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", email).Scan(&emailExists)
+	err := repo.Conn.QueryRow(ctx, query, args...).Scan(&emailExists)
 	if err != nil {
 		return false, err
 	}
@@ -28,31 +40,34 @@ func (repo *UsersRepo) EmailExists(ctx context.Context, email string) (bool, err
 }
 
 func (repo *UsersRepo) Create(ctx context.Context, email string, passwordHash string) (models.UserData, error) {
-	rows, err := repo.Conn.Query(
-		ctx,
-		"INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, password_hash, created_at",
-		email,
-		passwordHash,
-	)
-	if err != nil {
-		return models.UserData{}, err
-	}
+	query, args := utils.PgxSB.
+		Insert("users").Columns("email", "password_hash").
+		Values(email, passwordHash).
+		Suffix("RETURNING id, email, password_hash, created_at").
+		MustSql()
 
-	return pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.UserData])
+	user, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.UserData])
+	if err != nil {
+		return models.UserData{}, fmt.Errorf("db: failed to create user: %w", err)
+	}
+	return user, nil
 }
 
-func (repo *UsersRepo) GetByEmail(ctx context.Context, email string) (user models.UserData, found bool, err error) {
-	rows, err := repo.Conn.Query(ctx, "SELECT id, email, password_hash, created_at FROM users WHERE email = $1", email)
+func (repo *UsersRepo) GetByEmail(ctx context.Context, email string) (models.UserData, error) {
+	query, args := utils.PgxSB.
+		Select("id", "email", "password_hash", "created_at").
+		From("users").
+		Where(sq.Eq{"email": email}).
+		MustSql()
+
+	user, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.UserData])
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.UserData{}, ErrNotFound
+	}
 	if err != nil {
-		return models.UserData{}, false, err
+		return models.UserData{}, fmt.Errorf("db: failed to query user with email %s: %w", email, err)
 	}
 
-	user, err = pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.UserData])
-	if errors.Is(err, pgx.ErrNoRows) {
-		return models.UserData{}, false, nil
-	}
-	if err != nil {
-		return models.UserData{}, false, err
-	}
-	return user, true, nil
+	return user, nil
 }

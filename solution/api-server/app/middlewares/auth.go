@@ -46,14 +46,13 @@ func NewJwtAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UsersRe
 				return
 			}
 
-			userData, found, err := usersRepo.GetByEmail(c, email)
-			if err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			userData, err := usersRepo.GetByEmail(c, email)
+			if err == services.ErrUserNotFound {
+				c.AbortWithStatus(http.StatusUnauthorized)
 				return
 			}
-
-			if !found {
-				c.AbortWithStatus(http.StatusUnauthorized)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 

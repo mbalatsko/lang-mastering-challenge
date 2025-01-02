@@ -157,8 +157,8 @@ func TestRegistration(t *testing.T) {
 
 			assert.Equal(t, 201, resp.Code, email, password, resp.Body.String())
 
-			user, found, _ := userRepo.GetByEmail(context.Background(), email)
-			assert.True(t, found)
+			user, err := userRepo.GetByEmail(context.Background(), email)
+			assert.Nil(t, err)
 			assert.Equal(t, email, user.Email)
 		})
 	})

@@ -29,12 +29,12 @@ func (s *TasksService) ListByUserId(ctx context.Context, userId int) ([]models.T
 }
 
 func (s *TasksService) DeleteById(ctx context.Context, taskId int, reqUserId int) error {
-	taskDb, found, err := s.Repo.GetById(ctx, taskId)
-	if err != nil {
-		return nil
-	}
-	if !found {
+	taskDb, err := s.Repo.GetById(ctx, taskId)
+	if err == repos.ErrNotFound {
 		return ErrTaskDoesNotExist
+	}
+	if err != nil {
+		return err
 	}
 
 	if taskDb.UserId != reqUserId {
@@ -44,12 +44,12 @@ func (s *TasksService) DeleteById(ctx context.Context, taskId int, reqUserId int
 }
 
 func (s *TasksService) UpdateStatus(ctx context.Context, taskId int, newStatus string, reqUserId int) (models.TaskData, error) {
-	taskDb, found, err := s.Repo.GetById(ctx, taskId)
-	if err != nil {
-		return models.TaskData{}, nil
-	}
-	if !found {
+	taskDb, err := s.Repo.GetById(ctx, taskId)
+	if err == repos.ErrNotFound {
 		return models.TaskData{}, ErrTaskDoesNotExist
+	}
+	if err != nil {
+		return models.TaskData{}, err
 	}
 
 	if taskDb.UserId != reqUserId {

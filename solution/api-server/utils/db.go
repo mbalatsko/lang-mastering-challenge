@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var PgxSB = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func TruncateTables(conn *pgxpool.Pool, tables []string) {
 	batch := &pgx.Batch{}

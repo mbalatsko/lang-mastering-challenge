@@ -26,3 +26,9 @@ type TaskData struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UserId    int        `json:"-"`
 }
+
+type TasksFilter struct {
+	Query   *string    `form:"q"`
+	DueDate *time.Time `form:"due_date"`
+	Status  *string    `form:"status" binding:"taskStatus"`
+}

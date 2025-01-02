@@ -5,6 +5,7 @@ import (
 	"api-server/domain/repos"
 	"context"
 	"errors"
+	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -12,6 +13,7 @@ import (
 var (
 	ErrEmailAlreadyExists = errors.New("user with such email already exists")
 	ErrUserNotFound       = errors.New("user with given email is not found")
+	ErrIncorrectPassword  = errors.New("provided password is incorrect")
 )
 
 type UsersService struct {
@@ -52,29 +54,28 @@ func (s *UsersService) EmailExists(ctx context.Context, email string) bool {
 }
 
 func (s *UsersService) GetByEmail(ctx context.Context, email string) (models.UserData, error) {
-	user, found, err := s.Repo.GetByEmail(ctx, email)
+	user, err := s.Repo.GetByEmail(ctx, email)
+	if err == repos.ErrNotFound {
+		return models.UserData{}, ErrUserNotFound
+	}
 	if err != nil {
 		return user, err
-	}
-	if !found {
-		return user, ErrUserNotFound
 	}
 	return user, nil
 }
 
-func (s *UsersService) Login(ctx context.Context, email string, password string) (string, bool, error) {
-	user, found, err := s.Repo.GetByEmail(ctx, email)
+func (s *UsersService) Login(ctx context.Context, email string, password string) (string, error) {
+	user, err := s.GetByEmail(ctx, email)
 	if err != nil {
-		return "", false, err
-	}
-
-	if !found {
-		return "", false, nil
+		return "", err
 	}
 
 	tokenString, err := s.TokenProvider.Provide(email)
 	if err != nil {
-		return "", false, err
+		return "", fmt.Errorf("failed to generate user token on login: %w", err)
 	}
-	return tokenString, s.compareHashAndPassword(user.PasswordHash, password), nil
+	if !s.compareHashAndPassword(user.PasswordHash, password) {
+		return "", ErrIncorrectPassword
+	}
+	return tokenString, nil
 }

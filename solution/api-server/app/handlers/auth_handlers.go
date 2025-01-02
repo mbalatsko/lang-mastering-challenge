@@ -39,15 +39,17 @@ func HandleLogin(userService *services.UsersService) func(*gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		token, success, err := userService.Login(c.Request.Context(), cred.Email, cred.Password)
+
+		token, err := userService.Login(c.Request.Context(), cred.Email, cred.Password)
+		if err == services.ErrUserNotFound || err == services.ErrIncorrectPassword {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		if !success {
-			c.Status(http.StatusUnauthorized)
-			return
-		}
+
 		c.JSON(http.StatusOK, gin.H{"token": token})
 	}
 }

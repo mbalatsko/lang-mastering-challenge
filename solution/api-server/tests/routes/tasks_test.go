@@ -247,11 +247,8 @@ func TestTasksCreate(t *testing.T) {
 			assert.Equal(t, taskDataResp.DueDate, taskCreate.DueDate)
 			assert.Equal(t, taskDataResp.Status, "To do")
 
-			taskDataDb, found, err := tasksRepo.GetById(context.Background(), taskDataResp.Id)
-			if err != nil {
-				panic(err)
-			}
-			assert.True(t, found, taskDataResp)
+			taskDataDb, err := tasksRepo.GetById(context.Background(), taskDataResp.Id)
+			assert.Nil(t, err)
 			assert.Equal(t, taskDataDb.Name, taskDataResp.Name)
 			assert.Equal(t, taskDataDb.DueDate, taskDataResp.DueDate)
 			assert.Equal(t, taskDataDb.CreatedAt, taskDataResp.CreatedAt)
@@ -344,8 +341,8 @@ func TestTasksDelete(t *testing.T) {
 
 			assert.Equal(t, 204, resp.Code, resp.Body.String())
 
-			_, found, _ := tasksRepo.GetById(context.Background(), createdTask.Id)
-			assert.False(t, found, resp.Code, resp.Body.String())
+			_, err = tasksRepo.GetById(context.Background(), createdTask.Id)
+			assert.Equal(t, repos.ErrNotFound, err, resp.Code)
 		})
 	})
 }
@@ -448,11 +445,8 @@ func TestTasksUpdate(t *testing.T) {
 			// status changed
 			assert.Equal(t, updatedTaskData.Status, statusUpdate.Status)
 
-			taskDataDb, found, err := tasksRepo.GetById(context.Background(), createdTask.Id)
-			if err != nil {
-				panic(err)
-			}
-			assert.True(t, found)
+			taskDataDb, err := tasksRepo.GetById(context.Background(), createdTask.Id)
+			assert.Nil(t, err)
 			assert.Equal(t, taskDataDb.Name, createdTask.Name)
 			assert.Equal(t, taskDataDb.DueDate, createdTask.DueDate)
 			assert.Equal(t, taskDataDb.CreatedAt, createdTask.CreatedAt)

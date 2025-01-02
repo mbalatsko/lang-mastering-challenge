@@ -2,12 +2,16 @@ package repos
 
 import (
 	"api-server/domain/models"
+	"api-server/utils"
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgxutil"
 )
 
 type TasksRepo struct {
@@ -19,80 +23,99 @@ func NewTasksRepo(conn *pgxpool.Pool) *TasksRepo {
 }
 
 func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int) ([]models.TaskData, error) {
-	rows, err := repo.Conn.Query(
-		ctx,
-		"SELECT id, name, due_date, status, created_at, user_id FROM tasks WHERE user_id = $1",
-		userId,
-	)
+	query, args := utils.PgxSB.
+		Select("id", "name", "due_date", "status", "created_at", "user_id").
+		From("tasks").
+		Where(sq.Eq{"user_id": userId}).
+		MustSql()
+
+	tasks, err := pgxutil.Select(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db: failed to query tasks by user id %d: %w", userId, err)
 	}
 
-	return pgx.CollectRows(rows, pgx.RowToStructByPos[models.TaskData])
+	return tasks, nil
 }
 
-func (repo *TasksRepo) GetById(ctx context.Context, id int) (task models.TaskData, found bool, err error) {
-	rows, err := repo.Conn.Query(ctx, "SELECT id, name, due_date, status, created_at, user_id FROM tasks WHERE id = $1", id)
+func (repo *TasksRepo) GetById(ctx context.Context, id int) (models.TaskData, error) {
+	query, args := utils.PgxSB.
+		Select("id", "name", "due_date", "status", "created_at", "user_id").
+		From("tasks").
+		Where(sq.Eq{"id": id}).
+		MustSql()
+
+	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.TaskData{}, ErrNotFound
+	}
 	if err != nil {
-		return models.TaskData{}, false, err
+		return models.TaskData{}, fmt.Errorf("db: failed to query task with ID %d: %w", id, err)
 	}
 
-	task, err = pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.TaskData])
-	if errors.Is(err, pgx.ErrNoRows) {
-		return models.TaskData{}, false, nil
-	}
-	if err != nil {
-		return models.TaskData{}, false, err
-	}
-	return task, true, nil
+	return task, nil
 }
 
 func (repo *TasksRepo) DeleteById(ctx context.Context, id int) error {
-	_, err := repo.Conn.Exec(ctx, "DELETE FROM tasks WHERE id = $1", id)
-	return err
-}
+	query, args := utils.PgxSB.
+		Delete("tasks").
+		Where(sq.Eq{"id": id}).
+		MustSql()
+	_, err := pgxutil.ExecRow(ctx, repo.Conn, query, args...)
 
-func (repo *TasksRepo) UpdateStatus(ctx context.Context, taskId int, newStatus string) (models.TaskData, error) {
-	rows, err := repo.Conn.Query(
-		ctx,
-		"UPDATE tasks SET status = $1 WHERE id = $2 RETURNING id, name, due_date, status, created_at, user_id",
-		newStatus,
-		taskId,
-	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
-		return models.TaskData{}, err
+		return fmt.Errorf("query: %s args: %d: %w", query, args[0], err)
 	}
 
-	return pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.TaskData])
+	return nil
+}
+
+func (repo *TasksRepo) UpdateStatus(ctx context.Context, id int, newStatus string) (models.TaskData, error) {
+	query, args := utils.PgxSB.
+		Update("tasks").
+		Set("status", newStatus).
+		Where(sq.Eq{"id": id}).
+		Suffix("RETURNING id, name, due_date, status, created_at, user_id").
+		MustSql()
+
+	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.TaskData{}, nil
+	}
+	if err != nil {
+		return models.TaskData{}, fmt.Errorf("db: failed to update task with ID %d: %w", id, err)
+	}
+
+	return task, nil
 }
 
 func (repo *TasksRepo) Create(ctx context.Context, name string, dueDate *time.Time, userId int) (models.TaskData, error) {
-	rows, err := repo.Conn.Query(
-		ctx,
-		"INSERT INTO tasks (name, due_date, user_id) VALUES ($1, $2, $3) RETURNING id, name, due_date, status, created_at, user_id",
-		name,
-		dueDate,
-		userId,
-	)
+	query, args := utils.PgxSB.
+		Insert("tasks").Columns("name", "due_date", "user_id").
+		Values(name, dueDate, userId).
+		Suffix("RETURNING id, name, due_date, status, created_at, user_id").
+		MustSql()
+	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
 	if err != nil {
-		return models.TaskData{}, err
+		return models.TaskData{}, fmt.Errorf("db: failed to create task: %w", err)
 	}
 
-	return pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.TaskData])
+	return task, nil
 }
 
 func (repo *TasksRepo) CreateWithStatus(ctx context.Context, name string, dueDate *time.Time, status string, userId int) (models.TaskData, error) {
-	rows, err := repo.Conn.Query(
-		ctx,
-		"INSERT INTO tasks (name, due_date, status, user_id) VALUES ($1, $2, $3, $4) RETURNING id, name, due_date, status, created_at, user_id",
-		name,
-		dueDate,
-		status,
-		userId,
-	)
+	query, args := utils.PgxSB.
+		Insert("tasks").Columns("name", "due_date", "status", "user_id").
+		Values(name, dueDate, status, userId).
+		Suffix("RETURNING id, name, due_date, status, created_at, user_id").
+		MustSql()
+	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
 	if err != nil {
-		return models.TaskData{}, err
+		return models.TaskData{}, fmt.Errorf("db: failed to create task with status: %w", err)
 	}
 
-	return pgx.CollectOneRow(rows, pgx.RowToStructByPos[models.TaskData])
+	return task, nil
 }
