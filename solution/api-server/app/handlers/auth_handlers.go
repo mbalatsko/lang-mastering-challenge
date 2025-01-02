@@ -12,13 +12,13 @@ import (
 
 func HandleRegistration(userService *services.UsersService) func(*gin.Context) {
 	return func(c *gin.Context) {
-		var cred models.UserCredentials
-		if err := c.ShouldBindBodyWithJSON(&cred); err != nil {
+		var userRegister models.UserRegister
+		if err := c.ShouldBindBodyWithJSON(&userRegister); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		err := userService.Register(c.Request.Context(), cred.Email, cred.Password)
+		err := userService.Register(c.Request.Context(), userRegister.Email, userRegister.Password)
 		if err == services.ErrEmailAlreadyExists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -34,7 +34,7 @@ func HandleRegistration(userService *services.UsersService) func(*gin.Context) {
 
 func HandleLogin(userService *services.UsersService) func(*gin.Context) {
 	return func(c *gin.Context) {
-		var cred models.UserCredentials
+		var cred models.UserLogin
 		if err := c.ShouldBindBodyWithJSON(&cred); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return

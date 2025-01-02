@@ -29,7 +29,7 @@ var (
 )
 
 func createUserWithTasks(
-	userCred models.UserCredentials,
+	userCred models.UserRegister,
 	tasksData []models.TaskData,
 	userRepo *repos.UsersRepo,
 	tasksRepo *repos.TasksRepo,
@@ -85,7 +85,7 @@ func TestTasksList(t *testing.T) {
 
 	t.Run("Empty list on empty tasks list", func(t *testing.T) {
 		defer utils.TruncateTables(conn, []string{"tasks", "users"})
-		userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+		userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 		token, _ := tp.Provide(userCred.Email)
 
 		createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
@@ -110,7 +110,7 @@ func TestTasksList(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
 			defer utils.TruncateTables(conn, []string{"tasks", "users"})
 
-			userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+			userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 			token, _ := tp.Provide(userCred.Email)
 
 			tasksCount := rapid.IntRange(1, 10).Draw(t, "tasksCount")
@@ -126,7 +126,7 @@ func TestTasksList(t *testing.T) {
 			// create task of other user
 			nowUtc := time.Now().UTC()
 			createUserWithTasks(
-				models.UserCredentials{Email: "other@email.com", Password: "other"},
+				models.UserRegister{Email: "other@email.com", Password: "other"},
 				[]models.TaskData{
 					{Name: "Other name", DueDate: &nowUtc, Status: "To do"},
 					{Name: "Other name2", Status: "In progress"},
@@ -179,7 +179,7 @@ func TestTasksCreate(t *testing.T) {
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
 
 	// create tester user
-	userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+	userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 	token, _ := tp.Provide(userCred.Email)
 	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
 
@@ -277,7 +277,7 @@ func TestTasksDelete(t *testing.T) {
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
 
 	// create tester user
-	userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+	userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 	token, _ := tp.Provide(userCred.Email)
 	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
 
@@ -313,7 +313,7 @@ func TestTasksDelete(t *testing.T) {
 	})
 
 	t.Run("Forbidden on someone else's task", func(t *testing.T) {
-		otherUserCred := models.UserCredentials{Email: "other@other.com", Password: "whatever"}
+		otherUserCred := models.UserRegister{Email: "other@other.com", Password: "whatever"}
 		_, createdTasks := createUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
 		createdTask := createdTasks[0]
 
@@ -367,7 +367,7 @@ func TestTasksUpdate(t *testing.T) {
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
 
 	// create tester user
-	userCred := models.UserCredentials{Email: "tester@test.com", Password: "whatever"}
+	userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 	token, _ := tp.Provide(userCred.Email)
 	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
 
@@ -405,7 +405,7 @@ func TestTasksUpdate(t *testing.T) {
 	})
 
 	t.Run("Forbidden on someone else's task", func(t *testing.T) {
-		otherUserCred := models.UserCredentials{Email: "other@other.com", Password: "whatever"}
+		otherUserCred := models.UserRegister{Email: "other@other.com", Password: "whatever"}
 		_, createdTasks := createUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
 		createdTask := createdTasks[0]
 

@@ -84,7 +84,7 @@ func TestRegistration(t *testing.T) {
 		invalidEmails := []string{"invalid", "invalid.com", "aaa@aaa", "com.com@"}
 
 		for _, email := range invalidEmails {
-			testUser := models.UserCredentials{
+			testUser := models.UserRegister{
 				Email:    email,
 				Password: "Password1!",
 			}
@@ -102,7 +102,7 @@ func TestRegistration(t *testing.T) {
 		invalidPasswords := []string{"invalid", "invalid1", "invalid!", ".verylongbutinvalid.", "Invalid"}
 
 		for _, password := range invalidPasswords {
-			testUser := models.UserCredentials{
+			testUser := models.UserRegister{
 				Email:    "email@test.com",
 				Password: password,
 			}
@@ -122,7 +122,7 @@ func TestRegistration(t *testing.T) {
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := models.UserCredentials{
+			testUser := models.UserRegister{
 				Email:    email,
 				Password: password,
 			}
@@ -146,7 +146,7 @@ func TestRegistration(t *testing.T) {
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := models.UserCredentials{
+			testUser := models.UserRegister{
 				Email:    email,
 				Password: password,
 			}
@@ -191,7 +191,7 @@ func TestLogin(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := models.UserCredentials{
+			testUser := models.UserLogin{
 				Email:    email,
 				Password: password,
 			}
@@ -210,7 +210,7 @@ func TestLogin(t *testing.T) {
 
 			email := EmailGen.Draw(t, "email")
 			password := generateStrongPassword(t, rapid.IntRange(8, 20).Draw(t, "passwordLength"))
-			testUser := models.UserCredentials{
+			testUser := models.UserLogin{
 				Email:    email,
 				Password: password,
 			}
