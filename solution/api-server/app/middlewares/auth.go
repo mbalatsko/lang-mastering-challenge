@@ -53,7 +53,7 @@ func NewJwtHeaderAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.U
 			}
 
 			userData, err := usersRepo.GetByEmail(c, email)
-			if err == services.ErrUserNotFound {
+			if err == repos.ErrNotFound {
 				c.AbortWithStatus(http.StatusUnauthorized)
 				return
 			}
@@ -90,7 +90,7 @@ func NewJwtCookieAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.U
 			}
 
 			userData, err := usersRepo.GetByEmail(c, email)
-			if err == services.ErrUserNotFound {
+			if err == repos.ErrNotFound {
 				c.AbortWithStatus(http.StatusUnauthorized)
 				return
 			}
