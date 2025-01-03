@@ -9,20 +9,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type JwtAuthenticator struct {
+type JwtHeaderAuthenticator struct {
 	AuthHeader       string
 	AuthHeaderPrefix string
 	AuthCtxKey       string
 	Handler          gin.HandlerFunc
 }
 
-func NewJwtAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UsersRepo) *JwtAuthenticator {
+type JwtCookieAuthenticator struct {
+	AuthCookieKey string
+	AuthCtxKey    string
+	Handler       gin.HandlerFunc
+}
+
+func NewJwtHeaderAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UsersRepo) *JwtHeaderAuthenticator {
 	const (
 		authHeader       = "Authorization"
 		authHeaderPrefix = "Bearer"
 		authCtxKey       = "User"
 	)
-	return &JwtAuthenticator{
+	return &JwtHeaderAuthenticator{
 		AuthHeader:       authHeader,
 		AuthHeaderPrefix: authHeaderPrefix,
 		AuthCtxKey:       authCtxKey,
@@ -40,6 +46,43 @@ func NewJwtAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UsersRe
 			}
 
 			tokenString := headerParts[1]
+			email, err := tp.ParseEmail(tokenString)
+			if err != nil {
+				c.AbortWithStatus(http.StatusUnauthorized)
+				return
+			}
+
+			userData, err := usersRepo.GetByEmail(c, email)
+			if err == services.ErrUserNotFound {
+				c.AbortWithStatus(http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			c.Set(authCtxKey, userData)
+			c.Next()
+		},
+	}
+}
+
+func NewJwtCookieAuthenticator(tp *services.JwtTokenProvider, usersRepo *repos.UsersRepo) *JwtCookieAuthenticator {
+	const (
+		authCookieKey = "auth_token"
+		authCtxKey    = "User"
+	)
+	return &JwtCookieAuthenticator{
+		AuthCookieKey: authCookieKey,
+		AuthCtxKey:    authCtxKey,
+		Handler: func(c *gin.Context) {
+			tokenString, err := c.Cookie(authCookieKey)
+			if tokenString == "" || err != nil {
+				c.AbortWithStatus(http.StatusUnauthorized)
+				return
+			}
+
 			email, err := tp.ParseEmail(tokenString)
 			if err != nil {
 				c.AbortWithStatus(http.StatusUnauthorized)

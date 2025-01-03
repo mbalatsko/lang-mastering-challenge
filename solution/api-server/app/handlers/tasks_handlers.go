@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func HandleListTasks(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
+func HandleListTasks(tasksService *services.TasksService, jwtAuth *middlewares.JwtHeaderAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
 		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
@@ -32,7 +32,7 @@ func HandleListTasks(tasksService *services.TasksService, jwtAuth *middlewares.J
 	}
 }
 
-func HandleCreateTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
+func HandleCreateTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtHeaderAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
 		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
@@ -54,7 +54,7 @@ func HandleCreateTask(tasksService *services.TasksService, jwtAuth *middlewares.
 	}
 }
 
-func HandleDeleteTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
+func HandleDeleteTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtHeaderAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
 		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {
@@ -84,7 +84,7 @@ func HandleDeleteTask(tasksService *services.TasksService, jwtAuth *middlewares.
 	}
 }
 
-func HandleUpdateTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
+func HandleUpdateTask(tasksService *services.TasksService, jwtAuth *middlewares.JwtHeaderAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
 		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {

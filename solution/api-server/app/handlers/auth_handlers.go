@@ -53,7 +53,7 @@ func HandleLogin(userService *services.UsersService) func(*gin.Context) {
 	}
 }
 
-func HandleWhoAmI(userService *services.UsersService, jwtAuth *middlewares.JwtAuthenticator) func(*gin.Context) {
+func HandleWhoAmI(userService *services.UsersService, jwtAuth *middlewares.JwtHeaderAuthenticator) func(*gin.Context) {
 	return func(c *gin.Context) {
 		userData, err := GetUserFromCtx(c, jwtAuth.AuthCtxKey)
 		if err != nil {

@@ -1,4 +1,4 @@
-package routes_test
+package routes
 
 import (
 	"api-server/app/middlewares"
@@ -7,6 +7,7 @@ import (
 	"api-server/domain/models"
 	"api-server/domain/repos"
 	"api-server/domain/services"
+	test_utils "api-server/tests/utils"
 	"api-server/utils"
 	"context"
 	"encoding/json"
@@ -28,36 +29,6 @@ var (
 	dueDateUnixGen = rapid.Int64Range(time.Now().UTC().Add(-72*time.Hour).Unix(), time.Now().UTC().Add(72*time.Hour).Unix())
 	statusGen      = rapid.StringMatching(fmt.Sprintf("^(%s)$", strings.Join(utils.ValidTaskStatuses, "|")))
 )
-
-func Map[T, V any](ts []T, fn func(T) V) []V {
-	result := make([]V, len(ts))
-	for i, t := range ts {
-		result[i] = fn(t)
-	}
-	return result
-}
-
-func MapTasksToName(tasks []models.TaskData) []string {
-	return Map(tasks, func(t models.TaskData) string { return t.Name })
-}
-
-func createUserWithTasks(
-	userCred models.UserRegister,
-	tasksData []models.TaskData,
-	userRepo *repos.UsersRepo,
-	tasksRepo *repos.TasksRepo,
-) (models.UserData, []models.TaskData) {
-	createdTasks := make([]models.TaskData, 0, len(tasksData))
-	user, _ := userRepo.Create(context.Background(), userCred.Email, userCred.Password)
-	for _, t := range tasksData {
-		createdTask, err := tasksRepo.CreateWithStatus(context.Background(), t.Name, t.DueDate, t.Status, user.Id)
-		if err != nil {
-			panic(err)
-		}
-		createdTasks = append(createdTasks, createdTask)
-	}
-	return user, createdTasks
-}
 
 func genTask(t *rapid.T, i int) models.TaskData {
 	genDueDate := rapid.Bool().Draw(t, fmt.Sprintf("genDueDate%d", i))
@@ -83,13 +54,13 @@ func TestTasksList(t *testing.T) {
 	tasksRepo := repos.NewTasksRepo(conn)
 	tasksService := services.NewTasksService(tasksRepo)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
 
 	t.Run("Unauthorized on empty header", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/tasks/", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/tasks/", nil)
 		resp := httptest.NewRecorder()
 		r.ServeHTTP(resp, req)
 
@@ -101,9 +72,9 @@ func TestTasksList(t *testing.T) {
 		userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 		token, _ := tp.Provide(userCred.Email)
 
-		createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+		test_utils.CreateUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
 
-		req, _ := http.NewRequest("GET", "/tasks/", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/tasks/", nil)
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp := httptest.NewRecorder()
@@ -124,7 +95,7 @@ func TestTasksList(t *testing.T) {
 		userCred := models.UserRegister{Email: "tester@test.com", Password: "whatever"}
 		token, _ := tp.Provide(userCred.Email)
 
-		createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+		test_utils.CreateUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
 
 		u, _ := url.Parse("/tasks/")
 		query := u.Query()
@@ -132,7 +103,7 @@ func TestTasksList(t *testing.T) {
 		query.Set("due_date", "random")
 
 		u.RawQuery = query.Encode()
-		req, _ := http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req, _ := http.NewRequest("GET", u.String(), nil)
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp := httptest.NewRecorder()
@@ -144,7 +115,7 @@ func TestTasksList(t *testing.T) {
 		query = u.Query()
 		query.Set("status", "invalid")
 		u.RawQuery = query.Encode()
-		req, _ = http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req, _ = http.NewRequest("GET", u.String(), nil)
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp = httptest.NewRecorder()
@@ -159,7 +130,7 @@ func TestTasksList(t *testing.T) {
 		token, _ := tp.Provide(userCred.Email)
 
 		timeNow := time.Now().UTC()
-		_, tasks := createUserWithTasks(
+		_, tasks := test_utils.CreateUserWithTasks(
 			userCred,
 			[]models.TaskData{
 				{Name: "Task 1", DueDate: &timeNow, Status: "To do"},
@@ -177,7 +148,7 @@ func TestTasksList(t *testing.T) {
 		query.Set("q", "Task")
 		u.RawQuery = query.Encode()
 
-		req, _ := http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req, _ := http.NewRequest("GET", u.String(), nil)
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp := httptest.NewRecorder()
@@ -191,12 +162,12 @@ func TestTasksList(t *testing.T) {
 			panic(err)
 		}
 		assert.Equal(t, 3, len(tasksResp), tasksResp)
-		assert.ElementsMatch(t, MapTasksToName(tasks[:3]), MapTasksToName(tasksResp))
+		assert.ElementsMatch(t, test_utils.MapTasksToName(tasks[:3]), test_utils.MapTasksToName(tasksResp))
 
 		// task due date filter
 		query.Set("due_date", timeNow.Format(utils.DayDateFmt))
 		u.RawQuery = query.Encode()
-		req, _ = http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req, _ = http.NewRequest("GET", u.String(), nil)
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp = httptest.NewRecorder()
@@ -209,12 +180,12 @@ func TestTasksList(t *testing.T) {
 			panic(err)
 		}
 		assert.Equal(t, 2, len(tasksResp), tasksResp)
-		assert.ElementsMatch(t, MapTasksToName(tasks[:2]), MapTasksToName(tasksResp))
+		assert.ElementsMatch(t, test_utils.MapTasksToName(tasks[:2]), test_utils.MapTasksToName(tasksResp))
 
 		// task status filter
 		query.Set("status", "To do")
 		u.RawQuery = query.Encode()
-		req, _ = http.NewRequest("GET", u.String(), strings.NewReader(""))
+		req, _ = http.NewRequest("GET", u.String(), nil)
 		req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 		resp = httptest.NewRecorder()
@@ -227,8 +198,7 @@ func TestTasksList(t *testing.T) {
 			panic(err)
 		}
 		assert.Equal(t, 1, len(tasksResp), tasksResp)
-		assert.ElementsMatch(t, MapTasksToName(tasks[:1]), MapTasksToName(tasksResp))
-
+		assert.ElementsMatch(t, test_utils.MapTasksToName(tasks[:1]), test_utils.MapTasksToName(tasksResp))
 	})
 
 	t.Run("Same list as in DB", func(t *testing.T) {
@@ -246,11 +216,11 @@ func TestTasksList(t *testing.T) {
 				task := genTask(t, i)
 				expectedTasks = append(expectedTasks, task)
 			}
-			createUserWithTasks(userCred, expectedTasks, userRepo, tasksRepo)
+			test_utils.CreateUserWithTasks(userCred, expectedTasks, userRepo, tasksRepo)
 
 			// create task of other user
 			nowUtc := time.Now().UTC()
-			createUserWithTasks(
+			test_utils.CreateUserWithTasks(
 				models.UserRegister{Email: "other@email.com", Password: "other"},
 				[]models.TaskData{
 					{Name: "Other name", DueDate: &nowUtc, Status: "To do"},
@@ -260,7 +230,7 @@ func TestTasksList(t *testing.T) {
 				tasksRepo,
 			)
 
-			req, _ := http.NewRequest("GET", "/tasks/", strings.NewReader(""))
+			req, _ := http.NewRequest("GET", "/tasks/", nil)
 			req.Header.Set(jwtAuth.AuthHeader, fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token))
 
 			resp := httptest.NewRecorder()
@@ -298,7 +268,7 @@ func TestTasksCreate(t *testing.T) {
 	tasksRepo := repos.NewTasksRepo(conn)
 	tasksService := services.NewTasksService(tasksRepo)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
@@ -308,11 +278,11 @@ func TestTasksCreate(t *testing.T) {
 	token, _ := tp.Provide(userCred.Email)
 	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
 
-	createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+	test_utils.CreateUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
 	defer utils.TruncateTables(conn, []string{"users"})
 
 	t.Run("Unauthorized on empty header", func(t *testing.T) {
-		req, _ := http.NewRequest("POST", "/tasks/", strings.NewReader(""))
+		req, _ := http.NewRequest("POST", "/tasks/", nil)
 		resp := httptest.NewRecorder()
 		r.ServeHTTP(resp, req)
 
@@ -323,7 +293,7 @@ func TestTasksCreate(t *testing.T) {
 		defer utils.TruncateTables(conn, []string{"tasks"})
 
 		// empty body
-		req, _ := http.NewRequest("POST", "/tasks/", strings.NewReader(""))
+		req, _ := http.NewRequest("POST", "/tasks/", nil)
 		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 		resp := httptest.NewRecorder()
@@ -393,7 +363,7 @@ func TestTasksDelete(t *testing.T) {
 	tasksRepo := repos.NewTasksRepo(conn)
 	tasksService := services.NewTasksService(tasksRepo)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
@@ -403,11 +373,11 @@ func TestTasksDelete(t *testing.T) {
 	token, _ := tp.Provide(userCred.Email)
 	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
 
-	userData, _ := createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+	userData, _ := test_utils.CreateUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
 	defer utils.TruncateTables(conn, []string{"users"})
 
 	t.Run("Unauthorized on empty header", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", "/tasks/123", strings.NewReader(""))
+		req, _ := http.NewRequest("DELETE", "/tasks/123", nil)
 		resp := httptest.NewRecorder()
 		r.ServeHTTP(resp, req)
 
@@ -415,7 +385,7 @@ func TestTasksDelete(t *testing.T) {
 	})
 
 	t.Run("Bad request on non number id", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", "/tasks/abcd", strings.NewReader(""))
+		req, _ := http.NewRequest("DELETE", "/tasks/abcd", nil)
 		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 		resp := httptest.NewRecorder()
@@ -425,7 +395,7 @@ func TestTasksDelete(t *testing.T) {
 	})
 
 	t.Run("Not found on non existing task", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", "/tasks/123", strings.NewReader(""))
+		req, _ := http.NewRequest("DELETE", "/tasks/123", nil)
 		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 		resp := httptest.NewRecorder()
@@ -436,10 +406,10 @@ func TestTasksDelete(t *testing.T) {
 
 	t.Run("Forbidden on someone else's task", func(t *testing.T) {
 		otherUserCred := models.UserRegister{Email: "other@other.com", Password: "whatever"}
-		_, createdTasks := createUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
+		_, createdTasks := test_utils.CreateUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
 		createdTask := createdTasks[0]
 
-		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.Id), strings.NewReader(""))
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.Id), nil)
 		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 		resp := httptest.NewRecorder()
@@ -458,7 +428,7 @@ func TestTasksDelete(t *testing.T) {
 				panic(err)
 			}
 
-			req, _ := http.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.Id), strings.NewReader(""))
+			req, _ := http.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.Id), nil)
 			req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 			resp := httptest.NewRecorder()
@@ -483,7 +453,7 @@ func TestTasksUpdate(t *testing.T) {
 	tasksRepo := repos.NewTasksRepo(conn)
 	tasksService := services.NewTasksService(tasksRepo)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterTasksRoutes(r, jwtAuth, tasksService)
@@ -493,11 +463,11 @@ func TestTasksUpdate(t *testing.T) {
 	token, _ := tp.Provide(userCred.Email)
 	userAuthHeader := fmt.Sprintf("%s %s", jwtAuth.AuthHeaderPrefix, token)
 
-	userData, _ := createUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
+	userData, _ := test_utils.CreateUserWithTasks(userCred, []models.TaskData{}, userRepo, tasksRepo)
 	defer utils.TruncateTables(conn, []string{"users"})
 
 	t.Run("Unauthorized on empty header", func(t *testing.T) {
-		req, _ := http.NewRequest("PATCH", "/tasks/123", strings.NewReader(""))
+		req, _ := http.NewRequest("PATCH", "/tasks/123", nil)
 		resp := httptest.NewRecorder()
 		r.ServeHTTP(resp, req)
 
@@ -505,7 +475,7 @@ func TestTasksUpdate(t *testing.T) {
 	})
 
 	t.Run("Bad request on non number id", func(t *testing.T) {
-		req, _ := http.NewRequest("PATCH", "/tasks/abcd", strings.NewReader(""))
+		req, _ := http.NewRequest("PATCH", "/tasks/abcd", nil)
 		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 		resp := httptest.NewRecorder()
@@ -528,7 +498,7 @@ func TestTasksUpdate(t *testing.T) {
 
 	t.Run("Forbidden on someone else's task", func(t *testing.T) {
 		otherUserCred := models.UserRegister{Email: "other@other.com", Password: "whatever"}
-		_, createdTasks := createUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
+		_, createdTasks := test_utils.CreateUserWithTasks(otherUserCred, []models.TaskData{{Name: "Other task", Status: "Done"}}, userRepo, tasksRepo)
 		createdTask := createdTasks[0]
 
 		statusUpdate := models.TaskStatus{Status: "To do"}

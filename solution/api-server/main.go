@@ -48,12 +48,14 @@ func main() {
 	utils.RegisterValidators()
 
 	// Setup Auth middleware
-	jwtAuth := middlewares.NewJwtAuthenticator(deps.TokenProvider, deps.UsersRepo)
+	jwtHeaderAuth := middlewares.NewJwtHeaderAuthenticator(deps.TokenProvider, deps.UsersRepo)
+	jwtCookieAuth := middlewares.NewJwtCookieAuthenticator(deps.TokenProvider, deps.UsersRepo)
 
 	// Register all app routes
 	r := routes.SetupDefaultRouter()
-	routes.RegisterAuthRoutes(r, jwtAuth, deps.UsersService)
-	routes.RegisterTasksRoutes(r, jwtAuth, deps.TasksService)
+	routes.RegisterAuthRoutes(r, jwtHeaderAuth, deps.UsersService)
+	routes.RegisterTasksRoutes(r, jwtHeaderAuth, deps.TasksService)
+	routes.RegisterDashboardRoute(r, jwtCookieAuth, deps.TasksService)
 
 	r.Run(":9090")
 }

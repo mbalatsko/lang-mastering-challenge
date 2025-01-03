@@ -24,9 +24,9 @@ type TaskData struct {
 }
 
 type TasksFilter struct {
-	Query      *string `form:"q"`
-	DueDateStr *string `form:"due_date" binding:"omitempty,dayFormat"`
-	Status     *string `form:"status" binding:"omitempty,taskStatus"`
+	Query      *string `form:"q" json:"q"`
+	DueDateStr *string `form:"due_date" json:"dues_date" binding:"omitempty,dayFormat"`
+	Status     *string `form:"status" json:"status" binding:"omitempty,taskStatus"`
 }
 
 func (tf TasksFilter) DueDate() *time.Time {

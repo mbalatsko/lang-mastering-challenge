@@ -66,7 +66,7 @@ func TestRegistration(t *testing.T) {
 	userRepo := repos.NewUsersRepo(conn)
 	userService := services.NewUsersService(userRepo, tp)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterAuthRoutes(r, jwtAuth, userService)
@@ -173,7 +173,7 @@ func TestLogin(t *testing.T) {
 	userRepo := repos.NewUsersRepo(conn)
 	userService := services.NewUsersService(userRepo, tp)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterAuthRoutes(r, jwtAuth, userService)
@@ -254,13 +254,13 @@ func TestWhoAmI(t *testing.T) {
 	userRepo := repos.NewUsersRepo(conn)
 	userService := services.NewUsersService(userRepo, tp)
 
-	jwtAuth := middlewares.NewJwtAuthenticator(tp, userRepo)
+	jwtAuth := middlewares.NewJwtHeaderAuthenticator(tp, userRepo)
 
 	utils.RegisterValidators()
 	routes.RegisterAuthRoutes(r, jwtAuth, userService)
 
 	t.Run("Unauthorized on empty header", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/auth/whoami", nil)
 		resp := httptest.NewRecorder()
 		r.ServeHTTP(resp, req)
 
@@ -268,7 +268,7 @@ func TestWhoAmI(t *testing.T) {
 	})
 
 	t.Run("Unauthorized on wrong header value", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/auth/whoami", nil)
 
 		// random value
 		req.Header.Set(jwtAuth.AuthHeader, "test")
@@ -286,7 +286,7 @@ func TestWhoAmI(t *testing.T) {
 	})
 
 	t.Run("Unauthorized on correct header value, but non existing user", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/auth/whoami", nil)
 
 		// random value
 		token, _ := tp.Provide("non@existing.com")
@@ -298,7 +298,7 @@ func TestWhoAmI(t *testing.T) {
 	})
 
 	t.Run("Unauthorized on correct header value, but non existing user", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/auth/whoami", nil)
 
 		// random value
 		token, _ := tp.Provide("non@existing.com")
@@ -318,7 +318,7 @@ func TestWhoAmI(t *testing.T) {
 			panic(err)
 		}
 
-		req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+		req, _ := http.NewRequest("GET", "/auth/whoami", nil)
 
 		// expired token
 		token, _ := tp.ProvideWithExp(email, time.Now().UTC().Add(-time.Hour))
@@ -340,7 +340,7 @@ func TestWhoAmI(t *testing.T) {
 				panic(err)
 			}
 
-			req, _ := http.NewRequest("GET", "/auth/whoami", strings.NewReader(""))
+			req, _ := http.NewRequest("GET", "/auth/whoami", nil)
 
 			// expired token
 			token, _ := tp.Provide(email)
