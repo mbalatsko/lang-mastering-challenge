@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	log "github.com/sirupsen/logrus"
 )
 
 func ConnectDB() *pgxpool.Pool {
@@ -23,5 +24,11 @@ func ConnectDB() *pgxpool.Pool {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to connect to database: %s", err.Error()))
 	}
+
+	log.WithFields(
+		log.Fields{
+			"url": url,
+		},
+	).Info("Successfully connected to database")
 	return conn
 }

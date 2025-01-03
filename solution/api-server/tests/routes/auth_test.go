@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
@@ -58,7 +57,7 @@ func generateStrongPassword(t *rapid.T, length int) string {
 }
 
 func TestRegistration(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 
@@ -165,7 +164,7 @@ func TestRegistration(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 
@@ -246,7 +245,7 @@ func TestLogin(t *testing.T) {
 }
 
 func TestWhoAmI(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 

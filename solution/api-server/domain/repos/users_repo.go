@@ -1,11 +1,13 @@
 package repos
 
 import (
+	"api-server/app/logger"
 	"api-server/domain/models"
 	"api-server/utils"
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -30,9 +32,11 @@ func (repo *UsersRepo) EmailExists(ctx context.Context, email string) (bool, err
 		Suffix(")").
 		MustSql()
 
+	startTime := time.Now()
 	var emailExists bool
-
 	err := repo.Conn.QueryRow(ctx, query, args...).Scan(&emailExists)
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
+
 	if err != nil {
 		return false, err
 	}
@@ -46,7 +50,10 @@ func (repo *UsersRepo) Create(ctx context.Context, email string, passwordHash st
 		Suffix("RETURNING id, email, password_hash, created_at").
 		MustSql()
 
+	startTime := time.Now()
 	user, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.UserData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
+
 	if err != nil {
 		return models.UserData{}, fmt.Errorf("db: failed to create user: %w", err)
 	}
@@ -60,7 +67,9 @@ func (repo *UsersRepo) GetByEmail(ctx context.Context, email string) (models.Use
 		Where(sq.Eq{"email": email}).
 		MustSql()
 
+	startTime := time.Now()
 	user, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.UserData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.UserData{}, ErrNotFound

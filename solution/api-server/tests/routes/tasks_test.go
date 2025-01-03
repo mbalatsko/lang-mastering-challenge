@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
@@ -44,7 +43,7 @@ func genTask(t *rapid.T, i int) models.TaskData {
 }
 
 func TestTasksList(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 
@@ -258,7 +257,7 @@ func TestTasksList(t *testing.T) {
 }
 
 func TestTasksCreate(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 
@@ -353,7 +352,7 @@ func TestTasksCreate(t *testing.T) {
 }
 
 func TestTasksDelete(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 
@@ -443,7 +442,7 @@ func TestTasksDelete(t *testing.T) {
 }
 
 func TestTasksUpdate(t *testing.T) {
-	r := gin.Default()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 

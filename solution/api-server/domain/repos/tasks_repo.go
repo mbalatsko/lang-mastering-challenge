@@ -1,6 +1,7 @@
 package repos
 
 import (
+	"api-server/app/logger"
 	"api-server/domain/models"
 	"api-server/utils"
 	"context"
@@ -45,7 +46,10 @@ func (repo *TasksRepo) ListByUserId(ctx context.Context, userId int, tasksFilter
 
 	query, args := qBuilder.MustSql()
 
+	startTime := time.Now()
 	tasks, err := pgxutil.Select(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
+
 	if err != nil {
 		return nil, fmt.Errorf("db: failed to query tasks by user id %d: %w", userId, err)
 	}
@@ -60,7 +64,9 @@ func (repo *TasksRepo) GetById(ctx context.Context, id int) (models.TaskData, er
 		Where(sq.Eq{"id": id}).
 		MustSql()
 
+	startTime := time.Now()
 	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.TaskData{}, ErrNotFound
@@ -77,7 +83,10 @@ func (repo *TasksRepo) DeleteById(ctx context.Context, id int) error {
 		Delete("tasks").
 		Where(sq.Eq{"id": id}).
 		MustSql()
+
+	startTime := time.Now()
 	_, err := pgxutil.ExecRow(ctx, repo.Conn, query, args...)
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -97,7 +106,10 @@ func (repo *TasksRepo) UpdateStatus(ctx context.Context, id int, newStatus strin
 		Suffix("RETURNING id, name, due_date, status, created_at, user_id").
 		MustSql()
 
+	startTime := time.Now()
 	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.TaskData{}, nil
 	}
@@ -114,7 +126,11 @@ func (repo *TasksRepo) Create(ctx context.Context, name string, dueDate *time.Ti
 		Values(name, dueDate, userId).
 		Suffix("RETURNING id, name, due_date, status, created_at, user_id").
 		MustSql()
+
+	startTime := time.Now()
 	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
+
 	if err != nil {
 		return models.TaskData{}, fmt.Errorf("db: failed to create task: %w", err)
 	}
@@ -128,7 +144,11 @@ func (repo *TasksRepo) CreateWithStatus(ctx context.Context, name string, dueDat
 		Values(name, dueDate, status, userId).
 		Suffix("RETURNING id, name, due_date, status, created_at, user_id").
 		MustSql()
+
+	startTime := time.Now()
 	task, err := pgxutil.SelectRow(ctx, repo.Conn, query, args, pgx.RowToStructByPos[models.TaskData])
+	logger.LogDbQueryTime(query, args, err, time.Since(startTime))
+
 	if err != nil {
 		return models.TaskData{}, fmt.Errorf("db: failed to create task with status: %w", err)
 	}

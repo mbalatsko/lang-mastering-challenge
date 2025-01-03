@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"api-server/app/logger"
 	"api-server/app/middlewares"
 	"api-server/app/routes"
 	"api-server/db"
@@ -17,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDashboard(t *testing.T) {
-	r := gin.Default()
+	logger.InitLogging()
+	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
 

@@ -5,12 +5,35 @@ import (
 	"api-server/app/middlewares"
 	"api-server/domain/services"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 )
 
 func SetupDefaultRouter() *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		startTime := time.Now()
+
+		c.Next()
+
+		latency := time.Since(startTime)
+		statusCode := c.Writer.Status()
+		clientIP := c.ClientIP()
+		method := c.Request.Method
+		path := c.Request.URL.Path
+
+		// Log using log.WithFields
+		log.WithFields(log.Fields{
+			"status_code":     statusCode,
+			"latency_seconds": latency.Seconds(),
+			"client_ip":       clientIP,
+			"method":          method,
+			"path":            path,
+		}).Info("Request completed")
+	})
+	r.Use(gin.Recovery())
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")

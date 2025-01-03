@@ -1,6 +1,7 @@
 package main
 
 import (
+	"api-server/app/logger"
 	"api-server/app/middlewares"
 	"api-server/app/routes"
 	"api-server/db"
@@ -9,6 +10,7 @@ import (
 	"api-server/utils"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	log "github.com/sirupsen/logrus"
 )
 
 type Services struct {
@@ -38,6 +40,10 @@ func SetupDependencies(conn *pgxpool.Pool) *Services {
 }
 
 func main() {
+	addr := "localhost:9090"
+	// Init logging
+	logger.InitLogging()
+
 	// Setup DB connection
 	conn := db.ConnectDB()
 
@@ -57,5 +63,6 @@ func main() {
 	routes.RegisterTasksRoutes(r, jwtHeaderAuth, deps.TasksService)
 	routes.RegisterDashboardRoute(r, jwtCookieAuth, deps.TasksService)
 
-	r.Run(":9090")
+	log.WithFields(log.Fields{"host": addr}).Info("Starting server")
+	r.Run(addr)
 }
