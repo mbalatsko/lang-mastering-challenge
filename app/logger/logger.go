@@ -25,5 +25,5 @@ func LogDbQueryTime(query string, args []any, err error, latency time.Duration) 
 		"args":            args,
 		"err":             err,
 		"latency_seconds": latency.Seconds(),
-	}).Info("Database query executed")
+	}).Debug("Database query executed")
 }

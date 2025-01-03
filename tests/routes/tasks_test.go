@@ -292,7 +292,7 @@ func TestTasksCreate(t *testing.T) {
 		defer utils.TruncateTables(conn, []string{"tasks"})
 
 		// empty body
-		req, _ := http.NewRequest("POST", "/tasks/", nil)
+		req, _ := http.NewRequest("POST", "/tasks/", strings.NewReader("{}"))
 		req.Header.Set(jwtAuth.AuthHeader, userAuthHeader)
 
 		resp := httptest.NewRecorder()

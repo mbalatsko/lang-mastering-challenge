@@ -1,0 +1,25 @@
+name: Go
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+      - name: Install dependencies
+        run: go get .
+      - name: Build
+        run: go build -v ./...
+      - name: Run databse for testing
+        run: |
+          source ./scripts/env.sh
+          ./scripts/database/cli.sh start
+      - name: Test with the Go CLI
+        run: |
+          source ./scripts/env.sh
+          GIN_MODE=release go test -v ./tests/...

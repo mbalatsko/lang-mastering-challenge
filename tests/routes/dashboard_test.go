@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"api-server/app/logger"
 	"api-server/app/middlewares"
 	"api-server/app/routes"
 	"api-server/db"
@@ -23,7 +22,6 @@ import (
 )
 
 func TestDashboard(t *testing.T) {
-	logger.InitLogging()
 	r := routes.SetupDefaultRouter()
 
 	conn := db.ConnectDB()
